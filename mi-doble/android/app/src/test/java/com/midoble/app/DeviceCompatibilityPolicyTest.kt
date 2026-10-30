@@ -38,7 +38,7 @@ class DeviceCompatibilityPolicyTest {
     }
 
     @Test
-    fun rejectsRamBelowFourGiB() {
+    fun rejectsRamBelowFourAdvertisedGb() {
         val report = DeviceCompatibilityPolicy.evaluate(
             androidApi = 34,
             totalRamBytes = DeviceCompatibilityPolicy.MIN_RAM_BYTES - 1,
