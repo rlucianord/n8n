@@ -50,13 +50,19 @@ class TransformersLocalProvider:
     ) -> str:
         if not messages:
             raise ValueError('messages cannot be empty.')
+        if any(
+            item.get('role') not in {'system', 'user', 'assistant'}
+            or not isinstance(item.get('content'), str)
+            for item in messages
+        ):
+            raise ValueError('Each message needs a supported role and text content.')
         if not 1 <= max_new_tokens <= 1024:
             raise ValueError('max_new_tokens must be between 1 and 1024.')
 
         self._load()
         import torch
 
-        if hasattr(self._tokenizer, 'apply_chat_template'):
+        if getattr(self._tokenizer, 'chat_template', None):
             input_ids = self._tokenizer.apply_chat_template(
                 messages,
                 add_generation_prompt=True,
@@ -73,18 +79,20 @@ class TransformersLocalProvider:
                 'attention_mask', torch.ones_like(input_ids)
             )
 
+        generation_args = {
+            'input_ids': input_ids,
+            'attention_mask': attention_mask,
+            'max_new_tokens': max_new_tokens,
+            'do_sample': False,
+        }
+        pad_token_id = self._tokenizer.pad_token_id
+        if pad_token_id is None:
+            pad_token_id = self._tokenizer.eos_token_id
+        if pad_token_id is not None:
+            generation_args['pad_token_id'] = pad_token_id
+
         with torch.inference_mode():
-            output = self._model.generate(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                max_new_tokens=max_new_tokens,
-                do_sample=False,
-                pad_token_id=(
-                    self._tokenizer.pad_token_id
-                    if self._tokenizer.pad_token_id is not None
-                    else self._tokenizer.eos_token_id
-                ),
-            )
+            output = self._model.generate(**generation_args)
 
         generated = output[0, input_ids.shape[-1]:]
         answer = self._tokenizer.decode(
