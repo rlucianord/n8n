@@ -31,6 +31,24 @@ jobs:
           packages: platform-tools
       - name: Install Android SDK platform
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358" "cmake;3.31.6"
+      - name: Configure persistent beta signing key
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.MIDOBLE_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.MIDOBLE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.MIDOBLE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.MIDOBLE_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/midoble-beta.jks"
+            echo "MIDOBLE_KEYSTORE_PATH=$RUNNER_TEMP/midoble-beta.jks" >> "$GITHUB_ENV"
+            echo "MIDOBLE_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "MIDOBLE_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "MIDOBLE_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+            echo "Stable beta signing enabled."
+          else
+            echo "::warning::Stable signing secrets are not configured. This APK will use a temporary debug key and will not update an installation signed by another runner."
+          fi
       - name: Set up Gradle 9.6.0
         uses: gradle/actions/setup-gradle@v4
         with:
