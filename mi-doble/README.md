@@ -5,7 +5,7 @@ Mi Doble is an independent local service intended to work alongside n8n. It is i
 ## Design principles
 
 - Local-first: personal conversations, audio, documents, model files, and the encrypted database stay on the user's own device in production.
-- No hosted AI APIs and no Ollama. The planned PC runtime is Python Transformers/PyTorch; Android will use a separately evaluated mobile runtime.
+- No hosted AI APIs and no Ollama. Production inference is designed for Android using llama.cpp locally with a Qwen3-4B GGUF model. Codespaces are only for development and fictitious-data tests.
 - SQLCipher encrypts the database. The service fails closed if SQLCipher or the database key is unavailable; it never silently falls back to ordinary SQLite.
 - n8n is an orchestration layer, not the personal memory store or AI model host.
 - External communications (Zoom, phone networks, messaging) necessarily use their respective services. Mi Doble must identify itself as an AI assistant and require explicit policies/permissions before acting.
@@ -20,7 +20,7 @@ The bootstrap now includes:
 - FastAPI endpoints for those operations.
 - API integration tests using a temporary encrypted database.
 
-An offline Transformers/PyTorch provider interface is now present. It only loads a model from an existing local directory (`local_files_only=True`) and defaults to CPU. No model weights are selected or downloaded yet. Chat generation is not exposed by the API until a model is benchmarked and configured. Speech, avatar, Android app, telephony, Zoom integration, policy-management endpoints, and authentication for non-loopback deployments are not enabled yet.
+The model provider contract and an offline llama.cpp GGUF adapter are present for development. The initial model candidate is Qwen3-4B GGUF Q4_K_M; weights have not been downloaded or committed. The Android production runtime will use llama.cpp through native JNI, with model inference and personal storage on the phone. See `docs/ANDROID_LOCAL_RUNTIME.md`. The older Transformers adapter is experimental and is not the Android production runtime. Speech, avatar, Android UI, telephony, Zoom integration, policy-management endpoints, and authentication for non-loopback deployments are not enabled yet.
 
 ## API
 
@@ -89,11 +89,11 @@ Open `http://127.0.0.1:8765/docs` or `http://127.0.0.1:8765/health`.
 
 ### Hardware diagnostic
 
-Before selecting model weights, run `python scripts/diagnose_hardware.py` on the actual target PC (not Codespaces). It reports CPU, physical RAM, GPU/VRAM when detectable, Python, and free disk space. The script uses only the Python standard library unless PyTorch is already installed.
+Run `python scripts/diagnose_hardware.py` in the Codespace to record development limits, and later on the Android target use a dedicated Android diagnostic screen to capture device RAM, chipset, Android version, and free storage. Codespace hardware does not determine Android compatibility.
 
-### Optional local language model
+### Optional GGUF model testing
 
-The optional `requirements-local-llm.txt` installs Transformers and PyTorch. Do not install it in Codespaces as part of the database/API tests. Install it on the target PC only after selecting and benchmarking a compatible model. Model files must be downloaded separately through a deliberate, trusted process and stored outside the public repository. The provider uses `local_files_only=True`; it will not fetch weights from the internet at runtime.
+`requirements-local-llm.txt` installs the optional `llama-cpp-python` adapter for Codespace experiments. On Alpine/musl or Python versions without a compatible wheel, installation may compile llama.cpp from source. Do not install this dependency as part of the basic API test setup. The adapter loads only a local GGUF file and does not download models. The production Android app will use llama.cpp through JNI, not this Python package. See `docs/ANDROID_LOCAL_RUNTIME.md` for the mobile design.
 
 ## Tests
 
