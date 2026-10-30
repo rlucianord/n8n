@@ -1,39 +1,60 @@
 # Mi Doble — Android application
 
-This is the native Android application module. It is separate from the Python FastAPI development/test harness in the parent directory.
+## Beta 0.2.0-beta1
+
+The first functional beta provides:
+
+- A native Android chat interface built with Kotlin and Jetpack Compose.
+- Local GGUF file selection through Android's system document picker.
+- Copying the selected model into the app-private `files/models` directory.
+- Loading the model through the JNI bridge into the CPU llama.cpp runtime.
+- Local text generation using the Qwen3 chat-message format and a greedy sampler.
+- A basic device/runtime diagnostic panel.
+
+The model weights are not bundled in the APK and are not downloaded by the application. The user must provide a compatible GGUF file. The app does not request Internet permission and does not transmit prompts or model data. The current beta keeps conversation history only in memory for the current app session; persistent encrypted conversation storage is not yet integrated.
 
 ## Device baseline
 
 - Android 14 or newer (minSdk 34)
 - At least 4 GB total RAM
 - At least 64 GB total internal storage
-- HONOR and Google Pixel devices are supported based on OS and hardware requirements, not a fixed list of phone models
 - Kotlin and Jetpack Compose
-- No network permission and no model download in this initial milestone
+- CPU-first llama.cpp native runtime, pinned to upstream tag `b12003`
+- Supported APK ABIs: `arm64-v8a` and `x86_64`
 
-The diagnostic screen reads Android version, total and available RAM, and total and available internal data-partition storage. A separate pure Kotlin policy evaluates Android API level, total RAM, and the declared storage capacity. Because Android's data-partition size is not the phone's advertised capacity, the 64 GB requirement remains pending until verified from the device specifications. Passing the installation baseline does not guarantee that a specific local language model will fit in memory.
+The diagnostic screen reports Android version, total and available RAM, ABIs, and data-partition storage. Android's data-partition size is not the phone's advertised storage capacity.
 
-The installation policy and model-runtime policy are covered by 15 JVM unit tests in `app/src/test`. Run them with `gradle --no-daemon :app:testDebugUnitTest`.
+## Beta test flow
 
-A CPU-first llama.cpp native library is wired through Android NDK, CMake, and JNI. The upstream source is pinned to the `b12003` tag. The app checks native backend initialization and reports system information; this does not load a GGUF model or perform inference. Model-specific memory and storage limits must be filled from measured model/device benchmarks, not estimated.
+1. Install the debug APK on an Android 14+ device.
+2. Obtain a compatible GGUF model file separately. Qwen3-4B Q4_K_M remains the target model, but this beta has not yet validated a specific model build on every device.
+3. Open Mi Doble and tap **Seleccionar GGUF**.
+4. Select the local `.gguf` file. The app copies it into private app storage.
+5. Tap **Cargar modelo** and wait for the native load operation to finish.
+6. Send a short test message in the conversation screen.
 
-## Build
+The initial generation path uses a Qwen3-style prompt template, a 2048-token context, a maximum of 256 generated tokens, and greedy sampling. Long prompts are rejected by the beta guard. Model loading and generation run off the UI thread.
 
-Open this directory in Android Studio, allow Gradle sync, then run the app on an Android 14+ device or emulator. The project targets Android API 36 and Java 17. The build uses Android Gradle Plugin 9.5.0, Gradle 9.6.0, Kotlin 2.4.21, and Compose BOM 2026.06.01 (Compose 1.11 line, compatible with compileSdk 36).
+## Known beta limitations
 
-The Gradle wrapper scripts are not committed in this source-only bootstrap. The GitHub Actions workflow builds on `ubuntu-latest`, runs JVM unit tests, compiles the native llama.cpp/JNI library, assembles the debug APK, and uploads it as the `mi-doble-debug-apk` artifact.
+- No model download or model catalogue.
+- No persistent chat history or encrypted SQLCipher storage yet.
+- No streaming token display; the response appears after generation completes.
+- No multi-model management or model unload control yet.
+- No voice, external communications, n8n integration, or cloud services.
+- The beta has not yet been validated with a real Qwen3-4B GGUF on the target HONOR device. Native library initialization was verified separately; model load and inference must be tested on device.
 
-### Codespaces on Alpine Linux
+## Build and tests
 
-The Android SDK's Linux CMake binary requires a glibc-compatible environment. Alpine uses musl, so native configuration can fail with an error such as `Error relocating .../cmake/.../bin/cmake: fcntl64: symbol not found`. This is a host-environment incompatibility, not an application C++ source error. Do not remove the native build or bypass JNI to work around it. Run the complete APK build using the Ubuntu GitHub Actions workflow or an Ubuntu-based development environment.
+The GitHub Actions workflow builds on `ubuntu-latest`, runs Android JVM unit tests, compiles llama.cpp and the JNI library, assembles the debug APK, verifies it, and uploads the `mi-doble-debug-apk` artifact.
 
-## Next implementation steps
+Run locally from this directory with the configured Android SDK/NDK:
 
-1. Run Android JVM tests and CI native build; resolve any toolchain errors.
-2. Add a controlled local GGUF model import/install flow.
-3. Define model-specific runtime limits from real measurements on physical devices.
-4. Implement GGUF loading, chat-template handling, and token streaming through JNI.
-5. Implement encrypted on-device storage and verify SQLCipher configuration.
-6. Test offline inference on physical HONOR and Pixel devices.
+```sh
+gradle --no-daemon :app:testDebugUnitTest
+gradle --no-daemon :app:assembleDebug
+```
+
+The Gradle wrapper scripts are not committed in this source-only bootstrap. Codespaces based on Alpine Linux may fail because the Android SDK CMake binary requires a glibc-compatible host; use the Ubuntu GitHub Actions workflow or an Ubuntu-based development environment.
 
 Never commit model weights, database files, user conversations, or encryption keys to this repository.
