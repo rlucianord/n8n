@@ -37,7 +37,7 @@ Run the service on loopback and open `/docs` for the interactive API reference.
 | DELETE | `/memories/{id}` | Delete a memory |
 | GET | `/audit` | Read the audit log |
 
-Memory is not automatically inferred from messages in this milestone. A memory is saved only when an explicit API request creates it.
+Memory is not automatically inferred from messages. A memory is saved only when an explicit API request creates it. The context endpoint ranks existing memories by lexical overlap with the current message, includes recent conversation history, and returns a model-ready message list. It does not persist the current message. The context includes instructions to disclose AI identity and require explicit authorization for external actions.
 
 ## Requirements
 
