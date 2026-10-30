@@ -162,4 +162,4 @@ private fun InfoCard(title: String, value: String) {
 private fun status(compatible: Boolean): String = if (compatible) "Cumple" else "No cumple"
 
 private fun formatBytes(bytes: Long): String =
-    String.format(Locale.getDefault(), "%.1f GB", bytes / GIB)
+    String.format(Locale.getDefault(), "%.1f GiB", bytes / GIB)
