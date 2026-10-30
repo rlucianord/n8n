@@ -1,0 +1,4 @@
+# Optional local-only inference dependencies. Install on the target PC,
+# not automatically in Codespaces. Select and benchmark a model first.
+transformers>=4.45,<6
+torch>=2.4,<3
