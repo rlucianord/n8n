@@ -1,4 +1,5 @@
-# Optional local-only inference dependencies. Install on the target PC,
-# not automatically in Codespaces. Select and benchmark a model first.
-transformers>=4.45,<6
-torch>=2.4,<3
+# Optional Codespace-only GGUF inference adapter.
+# This is not the Android runtime; Android uses llama.cpp via native JNI.
+# On Alpine/musl or Python versions without wheels, installation may compile
+# llama.cpp from source and require a C/C++ toolchain and CMake.
+llama-cpp-python>=0.3.16,<1.0
