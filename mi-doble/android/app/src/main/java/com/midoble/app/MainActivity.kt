@@ -1,6 +1,7 @@
 package com.midoble.app
 
 import android.Manifest
+import android.app.role.RoleManager
 import android.app.ActivityManager
 import android.content.pm.PackageManager
 import android.telephony.SubscriptionManager
@@ -73,6 +74,8 @@ class MainActivity : ComponentActivity() {
     private val simLines = mutableStateOf<List<SimLine>>(emptyList())
     private val selectedSimSlot = mutableStateOf(-1)
     private val simPermissionGranted = mutableStateOf(false)
+    private val blockedNumbers = mutableStateOf<List<String>>(emptyList())
+    private val screeningRoleHeld = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -89,6 +92,8 @@ class MainActivity : ComponentActivity() {
         voiceEnabledForCalls.value = prefs.getBoolean("voice_use_calls", false)
         voiceEnabledForMeetings.value = prefs.getBoolean("voice_use_meetings", false)
         selectedSimSlot.value = prefs.getInt("preferred_sim_slot", -1)
+        blockedNumbers.value = BlockedNumbersStore.read(this)
+        refreshScreeningRole()
         refreshSimLines()
 
         val manager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
@@ -134,6 +139,7 @@ class MainActivity : ComponentActivity() {
                             backend = backendInfo.value, device = snapshot,
                             onInstall = ::installSelectedModel, onBack = { screen.value = "home" }
                         )
+                        "blocked" -> CallBlocklistScreen(numbers = blockedNumbers.value, screeningEnabled = screeningRoleHeld.value, onAdd = ::addBlockedNumber, onRemove = ::removeBlockedNumber, onEnableScreening = ::requestScreeningRole, onBack = { screen.value = "home" })
                         "phone" -> PhoneSettingsScreen(
                             lines = simLines.value, selectedSlot = selectedSimSlot.value,
                             permissionGranted = simPermissionGranted.value,
@@ -159,7 +165,8 @@ class MainActivity : ComponentActivity() {
                             onProfile = { settingsMenuExpanded.value = false; screen.value = "profile" },
                             onModel = { settingsMenuExpanded.value = false; screen.value = "model" },
                             onAgency = { settingsMenuExpanded.value = false; screen.value = "agency" },
-                            onPhone = { settingsMenuExpanded.value = false; screen.value = "phone" }
+                            onPhone = { settingsMenuExpanded.value = false; screen.value = "phone" },
+                            onBlocked = { settingsMenuExpanded.value = false; screen.value = "blocked" }
                         )
                     }
                 }
@@ -177,10 +184,35 @@ class MainActivity : ComponentActivity() {
             }
         } catch (_: SecurityException) { simLines.value = emptyList() } catch (_: UnsupportedOperationException) { simLines.value = emptyList() }
     }
-    override fun onResume() { super.onResume(); refreshSimLines() }
+    override fun onResume() { super.onResume(); refreshSimLines(); refreshScreeningRole() }
+
+    private fun refreshScreeningRole() {
+        val manager = getSystemService(RoleManager::class.java)
+        screeningRoleHeld.value = manager?.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING) == true && manager.isRoleHeld(RoleManager.ROLE_CALL_SCREENING)
+    }
+
+    private fun requestScreeningRole() {
+        val manager = getSystemService(RoleManager::class.java) ?: return
+        if (manager.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)) {
+            startActivityForResult(manager.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING), 413)
+        }
+    }
+
+    private fun addBlockedNumber(raw: String) {
+        val cleaned = raw.trim()
+        if (cleaned.count { it.isDigit() } !in 7..15) return
+        blockedNumbers.value = (blockedNumbers.value + cleaned).distinct()
+        BlockedNumbersStore.write(this, blockedNumbers.value)
+    }
+
+    private fun removeBlockedNumber(number: String) {
+        blockedNumbers.value = blockedNumbers.value.filterNot { it == number }
+        BlockedNumbersStore.write(this, blockedNumbers.value)
+    }
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 410) refreshSimLines()
+        if (requestCode == 413) refreshScreeningRole()
     }
     private fun saveProfile() {
         getSharedPreferences("mi_doble_profile", MODE_PRIVATE).edit()
@@ -314,7 +346,7 @@ private data class DeviceSnapshot(
 private fun DigitalSelfHome(
     name: String, role: String, goals: String, modelReady: Boolean, selectedModel: String,
     modelStatus: String, menuExpanded: Boolean, onMenu: () -> Unit, onDismissMenu: () -> Unit,
-    onProfile: () -> Unit, onModel: () -> Unit, onAgency: () -> Unit, onPhone: () -> Unit
+    onProfile: () -> Unit, onModel: () -> Unit, onAgency: () -> Unit, onPhone: () -> Unit, onBlocked: () -> Unit
 ) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
@@ -332,6 +364,7 @@ private fun DigitalSelfHome(
                     DropdownMenuItem(text = { Text("Modelos") }, onClick = onModel)
                     DropdownMenuItem(text = { Text("Voz y permisos") }, onClick = onAgency)
                     DropdownMenuItem(text = { Text("Llamadas y SIM") }, onClick = onPhone)
+                    DropdownMenuItem(text = { Text("Números bloqueados") }, onClick = onBlocked)
                 }
             }
             Column {
