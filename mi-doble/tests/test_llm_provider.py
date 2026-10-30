@@ -1,34 +1,72 @@
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from pathlib import Path
 
-import pytest
 
-from app.services.llm.transformers_local import TransformersLocalProvider
+def _run_provider_check(tmp_path: Path, snippet: str) -> None:
+    env = os.environ.copy()
+    env['MIDOBLE_TEST_MODEL_DIR'] = str(tmp_path / 'placeholder-model')
+    (tmp_path / 'placeholder-model').mkdir()
+    root = Path(__file__).resolve().parents[1]
+    subprocess.run(
+        [sys.executable, '-c', snippet],
+        cwd=root,
+        env=env,
+        check=True,
+    )
 
 
 def test_local_provider_rejects_missing_model_directory(tmp_path: Path):
-    missing = tmp_path / 'model-not-installed'
-    with pytest.raises(FileNotFoundError, match='Local model directory'):
-        TransformersLocalProvider(missing)
+    snippet = r'''
+from app.services.llm.transformers_local import TransformersLocalProvider
+from pathlib import Path
+import os
+missing = Path(os.environ['MIDOBLE_TEST_MODEL_DIR']) / 'missing'
+try:
+    TransformersLocalProvider(missing)
+except FileNotFoundError as exc:
+    assert 'Local model directory' in str(exc)
+else:
+    raise AssertionError('Expected FileNotFoundError')
+'''
+    # The helper creates the placeholder; this check targets a separate path.
+    _run_provider_check(tmp_path, snippet)
 
 
 def test_local_provider_validates_generation_limits_without_loading_model(tmp_path: Path):
-    model_dir = tmp_path / 'placeholder-model'
-    model_dir.mkdir()
-    provider = TransformersLocalProvider(model_dir)
-
-    with pytest.raises(ValueError, match='messages cannot be empty'):
-        provider.generate([])
-
-    with pytest.raises(ValueError, match='max_new_tokens'):
-        provider.generate([{'role': 'user', 'content': 'Hola'}], max_new_tokens=0)
+    snippet = r'''
+import os
+from app.services.llm.transformers_local import TransformersLocalProvider
+provider = TransformersLocalProvider(os.environ['MIDOBLE_TEST_MODEL_DIR'])
+try:
+    provider.generate([])
+except ValueError as exc:
+    assert 'messages cannot be empty' in str(exc)
+else:
+    raise AssertionError('Expected empty-message validation')
+try:
+    provider.generate([{'role': 'user', 'content': 'Hola'}], max_new_tokens=0)
+except ValueError as exc:
+    assert 'max_new_tokens' in str(exc)
+else:
+    raise AssertionError('Expected token-limit validation')
+'''
+    _run_provider_check(tmp_path, snippet)
 
 
 def test_local_provider_rejects_unsupported_message_roles(tmp_path: Path):
-    model_dir = tmp_path / 'placeholder-model'
-    model_dir.mkdir()
-    provider = TransformersLocalProvider(model_dir)
-
-    with pytest.raises(ValueError, match='supported role'):
-        provider.generate([{'role': 'tool', 'content': 'not allowed'}])
+    snippet = r'''
+import os
+from app.services.llm.transformers_local import TransformersLocalProvider
+provider = TransformersLocalProvider(os.environ['MIDOBLE_TEST_MODEL_DIR'])
+try:
+    provider.generate([{'role': 'tool', 'content': 'not allowed'}])
+except ValueError as exc:
+    assert 'supported role' in str(exc)
+else:
+    raise AssertionError('Expected role validation')
+'''
+    _run_provider_check(tmp_path, snippet)
