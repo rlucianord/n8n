@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import re
-from collections import Counter
-
 from app.services import memory
 
 _STOP_WORDS = {
@@ -86,7 +84,7 @@ def build_context(
     messages.extend(
         {'role': item['role'], 'content': item['content']}
         for item in history
-        if item['role'] in {'system', 'user', 'assistant'}
+        if item['role'] in {'user', 'assistant'}
     )
     messages.append({'role': 'user', 'content': current_message})
 
