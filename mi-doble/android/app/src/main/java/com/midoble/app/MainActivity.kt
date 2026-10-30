@@ -137,7 +137,7 @@ class MainActivity : ComponentActivity() {
                         "phone" -> PhoneSettingsScreen(
                             lines = simLines.value, selectedSlot = selectedSimSlot.value,
                             permissionGranted = simPermissionGranted.value,
-                            onRequestPermission = { requestPermissions(arrayOf(Manifest.permission.READ_PHONE_STATE), 410) },
+                            onRequestPermission = { requestPermissions(arrayOf(Manifest.permission.READ_PHONE_STATE, Manifest.permission.READ_PHONE_NUMBERS), 410) },
                             onSelect = { slot -> selectedSimSlot.value = slot; getSharedPreferences("mi_doble_profile", MODE_PRIVATE).edit().putInt("preferred_sim_slot", slot).apply() },
                             onRefresh = ::refreshSimLines, onBack = { screen.value = "home" }
                         )
@@ -168,7 +168,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun refreshSimLines() {
-        simPermissionGranted.value = checkSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
+        simPermissionGranted.value = checkSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.READ_PHONE_NUMBERS) == PackageManager.PERMISSION_GRANTED
         if (!simPermissionGranted.value) { simLines.value = emptyList(); return }
         try {
             val manager = getSystemService(TELEPHONY_SUBSCRIPTION_SERVICE) as SubscriptionManager
