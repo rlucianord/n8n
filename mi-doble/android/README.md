@@ -2,9 +2,9 @@
 
 ## Beta de selección de modelos
 
-La pantalla presenta tres modelos por nombre: Phi-4, Qwen3 y Gemma 3. El usuario puede cambiar la selección en cualquier momento. Los modelos descargados se guardan en el almacenamiento privado de la aplicación y no se eliminan al actualizar la app.
+La pantalla presenta cinco modelos por nombre: Phi-4, Qwen3, Gemma 3, Llama 3.2 y SmolLM3. Los modelos se ejecutan localmente mediante archivos cuantizados compatibles con el teléfono. El usuario puede cambiar la selección en cualquier momento. Los modelos descargados se guardan en el almacenamiento privado de la aplicación y no se eliminan al actualizar la app.
 
-En esta compilación, únicamente Qwen3 tiene un archivo GGUF con tamaño y SHA-256 validados en el descargador. Los otros dos aparecen en el catálogo y se pueden seleccionar, pero su instalación permanece bloqueada hasta que se fijen y verifiquen artefactos oficiales compatibles. No se debe mostrar su estado como instalado ni cambiar el modelo activo si no se ha cargado correctamente.
+En esta compilación, únicamente Qwen3 tiene un archivo GGUF con tamaño y SHA-256 validados en el descargador. Phi-4, Gemma 3, Llama 3.2 y SmolLM3 aparecen en el catálogo y se pueden seleccionar, pero su instalación permanece bloqueada hasta que se fijen y verifiquen artefactos oficiales compatibles. No se debe mostrar su estado como instalado ni cambiar el modelo activo si no se ha cargado correctamente.
 
 ## Voz
 
@@ -21,9 +21,9 @@ El usuario puede configurar la voz del dispositivo, indicar que desea su voz per
 
 ## Limitaciones
 
-- El selector de cuatro nombres está implementado, pero solo Qwen3 tiene descarga verificada en esta revisión.
-- No existe todavía descarga de Phi-4, Llama 3.2 ni Gemma 3.
-- El cambio entre modelos requiere un archivo instalado y validado; por ahora, cambiar a los otros dos solo guarda la selección y muestra que el instalador aún no está disponible.
+- El selector de cinco nombres está implementado, pero solo Qwen3 tiene descarga verificada en esta revisión.
+- No existe todavía descarga verificada de Phi-4, Llama 3.2, Gemma 3 ni SmolLM3.
+- El cambio entre modelos requiere un archivo instalado y validado; por ahora, cambiar a los otros cuatro solo guarda la selección y muestra que el instalador aún no está disponible.
 - Preferencias de voz se almacenan, pero el motor de voz y la clonación de voz no están integrados.
 - Llamadas, reuniones y correo aún necesitan conectores externos autorizados.
 - No declarar memoria SQLCipher integrada en Android hasta verificar interoperabilidad con el servicio local.
