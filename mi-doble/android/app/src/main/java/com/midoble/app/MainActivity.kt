@@ -9,7 +9,6 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -33,14 +32,28 @@ import java.util.concurrent.Executors
 
 private const val GIB = 1024.0 * 1024.0 * 1024.0
 
+private data class ModelOption(val name: String, val description: String, val artifact: String?)
+
+private val modelOptions = listOf(
+    ModelOption("Phi-4", "Un modelo de Microsoft para razonamiento y tareas generales.", null),
+    ModelOption("Qwen3", "Modelo multilingüe para tareas generales. Disponible para instalación.", "Qwen3-4B-Q4_K_M.gguf"),
+    ModelOption("Llama 3.2", "Modelo compacto para asistencia cotidiana.", null),
+    ModelOption("Gemma 3", "Modelo compacto de Google.", null)
+)
+
 class MainActivity : ComponentActivity() {
     private val executor = Executors.newSingleThreadExecutor()
     private val backendInfo = mutableStateOf("Comprobando motor local…")
-    private val modelStatus = mutableStateOf("El modelo todavía no está instalado.")
+    private val modelStatus = mutableStateOf("Selecciona un modelo.")
     private val modelProgress = mutableStateOf(0f)
     private val modelReady = mutableStateOf(false)
     private val busy = mutableStateOf(false)
     private val screen = mutableStateOf("home")
+    private val selectedModel = mutableStateOf("Qwen3")
+    private val voiceMode = mutableStateOf("Voz del dispositivo")
+    private val customVoiceLabel = mutableStateOf("")
+    private val voiceEnabledForCalls = mutableStateOf(false)
+    private val voiceEnabledForMeetings = mutableStateOf(false)
     private val profileName = mutableStateOf("")
     private val profileRole = mutableStateOf("")
     private val profileLanguages = mutableStateOf("Español, inglés")
@@ -57,6 +70,11 @@ class MainActivity : ComponentActivity() {
         profileGoals.value = prefs.getString("goals", "") ?: ""
         profileStyle.value = prefs.getString("style", "Directo, claro y práctico") ?: "Directo, claro y práctico"
         profileValues.value = prefs.getString("values", "Privacidad, autonomía y continuidad") ?: "Privacidad, autonomía y continuidad"
+        selectedModel.value = prefs.getString("active_model", "Qwen3") ?: "Qwen3"
+        voiceMode.value = prefs.getString("voice_mode", "Voz del dispositivo") ?: "Voz del dispositivo"
+        customVoiceLabel.value = prefs.getString("custom_voice_label", "") ?: ""
+        voiceEnabledForCalls.value = prefs.getBoolean("voice_use_calls", false)
+        voiceEnabledForMeetings.value = prefs.getBoolean("voice_use_meetings", false)
 
         val manager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
         val memory = ActivityManager.MemoryInfo().also(manager::getMemoryInfo)
@@ -72,14 +90,9 @@ class MainActivity : ComponentActivity() {
             supportedAbis = android.os.Build.SUPPORTED_ABIS.joinToString(),
             lowRam = manager.isLowRamDevice
         )
-        val modelFile = File(filesDir, "models/Qwen3-4B-Q4_K_M.gguf")
-        if (ModelDownloader.isValidModel(modelFile)) {
-            modelStatus.value = "Modelo instalado y verificado. Inicializando motor…"
-            loadModel(modelFile)
-        } else {
-            modelStatus.value = "Qwen3-4B Q4_K_M listo para instalar. La instalación se conserva al actualizar Mi Doble."
-        }
 
+        val installed = File(filesDir, "models/Qwen3-4B-Q4_K_M.gguf")
+        if (ModelDownloader.isValidModel(installed)) loadModel(installed)
         executor.execute {
             val info = try { NativeLlamaBridge.backendInfo() }
             catch (error: Throwable) { "Motor nativo: ${error.javaClass.simpleName}: ${error.message ?: ""}" }
@@ -100,14 +113,26 @@ class MainActivity : ComponentActivity() {
                             onSave = ::saveProfile, onBack = { screen.value = "home" }
                         )
                         "model" -> ModelSettingsScreen(
-                            status = modelStatus.value, progress = modelProgress.value, busy = busy.value,
+                            options = modelOptions, selected = selectedModel.value,
+                            onSelected = ::selectModel, status = modelStatus.value,
+                            progress = modelProgress.value, busy = busy.value,
                             backend = backendInfo.value, device = snapshot,
-                            onInstall = ::installModel, onBack = { screen.value = "home" }
+                            onInstall = ::installSelectedModel, onBack = { screen.value = "home" }
+                        )
+                        "agency" -> AgencySettingsScreen(
+                            voiceMode = voiceMode.value, onVoiceMode = { voiceMode.value = it },
+                            customVoiceLabel = customVoiceLabel.value,
+                            onCustomVoiceLabel = { customVoiceLabel.value = it },
+                            calls = voiceEnabledForCalls.value, onCalls = { voiceEnabledForCalls.value = it },
+                            meetings = voiceEnabledForMeetings.value, onMeetings = { voiceEnabledForMeetings.value = it },
+                            onSave = ::saveAgencySettings, onBack = { screen.value = "home" }
                         )
                         else -> DigitalSelfHome(
                             name = profileName.value, role = profileRole.value, goals = profileGoals.value,
-                            modelReady = modelReady.value, modelStatus = modelStatus.value,
-                            onProfile = { screen.value = "profile" }, onModel = { screen.value = "model" }
+                            modelReady = modelReady.value, selectedModel = selectedModel.value,
+                            modelStatus = modelStatus.value,
+                            onProfile = { screen.value = "profile" }, onModel = { screen.value = "model" },
+                            onAgency = { screen.value = "agency" }
                         )
                     }
                 }
@@ -127,10 +152,41 @@ class MainActivity : ComponentActivity() {
         screen.value = "home"
     }
 
-    private fun installModel() {
+    private fun saveAgencySettings() {
+        getSharedPreferences("mi_doble_profile", MODE_PRIVATE).edit()
+            .putString("voice_mode", voiceMode.value)
+            .putString("custom_voice_label", customVoiceLabel.value.trim())
+            .putBoolean("voice_use_calls", voiceEnabledForCalls.value)
+            .putBoolean("voice_use_meetings", voiceEnabledForMeetings.value)
+            .apply()
+        screen.value = "home"
+    }
+
+    private fun selectModel(name: String) {
+        if (modelOptions.none { it.name == name }) return
+        selectedModel.value = name
+        getSharedPreferences("mi_doble_profile", MODE_PRIVATE).edit().putString("active_model", name).apply()
+        val file = when (name) {
+            "Qwen3" -> File(filesDir, "models/Qwen3-4B-Q4_K_M.gguf")
+            else -> null
+        }
+        modelReady.value = file?.let(ModelDownloader::isValidModel) == true
+        modelStatus.value = when {
+            modelReady.value -> "Modelo seleccionado e instalado."
+            name == "Qwen3" -> "Qwen3 está seleccionado y listo para instalar."
+            else -> "Modelo incluido en el catálogo. Su instalador verificado se habilitará cuando se valide el archivo oficial."
+        }
+        if (modelReady.value && file != null) loadModel(file)
+    }
+
+    private fun installSelectedModel() {
         if (busy.value || modelReady.value) return
+        if (selectedModel.value != "Qwen3") {
+            modelStatus.value = "El instalador de este modelo aún no está habilitado: falta verificar su archivo, tamaño y SHA-256. Qwen3 permanece disponible."
+            return
+        }
         busy.value = true
-        modelStatus.value = "Conectando con el repositorio oficial de Qwen…"
+        modelStatus.value = "Descargando Qwen3 desde su repositorio oficial…"
         modelProgress.value = 0f
         executor.execute {
             try {
@@ -138,17 +194,16 @@ class MainActivity : ComponentActivity() {
                 val downloaded = ModelDownloader.download(this, target) { progress, bytes, total ->
                     runOnUiThread {
                         modelProgress.value = progress
-                        modelStatus.value = "Descargando modelo: %.2f / %.2f GiB".format(
-                            bytes / GIB, total / GIB
-                        )
+                        modelStatus.value = "Descargando Qwen3: %.2f / %.2f GiB".format(bytes / GIB, total / GIB)
                     }
                 }
-                runOnUiThread { modelStatus.value = "Modelo verificado. Inicializando llama.cpp…" }
                 val result = NativeLlamaBridge.loadModel(downloaded.absolutePath)
                 runOnUiThread {
                     modelStatus.value = result
                     modelReady.value = result.startsWith("Modelo GGUF cargado correctamente")
                     busy.value = false
+                    if (modelReady.value) getSharedPreferences("mi_doble_profile", MODE_PRIVATE).edit()
+                        .putString("active_model", "Qwen3").apply()
                 }
             } catch (error: Exception) {
                 runOnUiThread {
@@ -164,7 +219,7 @@ class MainActivity : ComponentActivity() {
         busy.value = true
         executor.execute {
             val result = try { NativeLlamaBridge.loadModel(file.absolutePath) }
-            catch (error: Throwable) { "No se pudo iniciar el modelo: ${error.javaClass.simpleName}: ${error.message ?: ""}" }
+            catch (error: Throwable) { "No se pudo iniciar el modelo: ${error.message ?: error.javaClass.simpleName}" }
             runOnUiThread {
                 modelStatus.value = result
                 modelReady.value = result.startsWith("Modelo GGUF cargado correctamente")
@@ -187,8 +242,8 @@ private data class DeviceSnapshot(
 
 @Composable
 private fun DigitalSelfHome(
-    name: String, role: String, goals: String, modelReady: Boolean, modelStatus: String,
-    onProfile: () -> Unit, onModel: () -> Unit
+    name: String, role: String, goals: String, modelReady: Boolean, selectedModel: String,
+    modelStatus: String, onProfile: () -> Unit, onModel: () -> Unit, onAgency: () -> Unit
 ) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Mi Doble", style = MaterialTheme.typography.headlineLarge)
@@ -198,17 +253,17 @@ private fun DigitalSelfHome(
                 Text(if (name.isBlank()) "Comencemos a configurar tu identidad" else "Hola, $name", style = MaterialTheme.typography.titleLarge)
                 Text(if (role.isBlank()) "Tu perfil personal todavía necesita configurarse." else role)
                 if (goals.isNotBlank()) Text("Enfoque actual: $goals")
-                Text("Estado del modelo: ${if (modelReady) "Activo" else "Pendiente"}")
+                Text("Modelo: $selectedModel · ${if (modelReady) "Activo" else "Pendiente"}")
                 Text(modelStatus, style = MaterialTheme.typography.bodySmall)
             }
         }
         Button(onClick = onProfile, modifier = Modifier.fillMaxWidth()) { Text("Personalizar mi identidad digital") }
-        Button(onClick = onModel, modifier = Modifier.fillMaxWidth()) { Text("Modelo e instalación") }
+        Button(onClick = onModel, modifier = Modifier.fillMaxWidth()) { Text("Elegir o cambiar modelo") }
+        Button(onClick = onAgency, modifier = Modifier.fillMaxWidth()) { Text("Configurar voz y permisos") }
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Qué estamos construyendo", style = MaterialTheme.typography.titleMedium)
-                Text("Un sistema personal que conserva tu perfil, aprende de la información que decidas guardar, mantiene continuidad entre proyectos y preferencias, y te ayuda a organizar decisiones y tareas.")
-                Text("La memoria persistente y el aprendizaje autorizado se incorporarán en las siguientes etapas; esta beta configura tu perfil local y prepara el motor.")
+                Text("Centro de acciones", style = MaterialTheme.typography.titleMedium)
+                Text("Aquí podrás configurar correo, llamadas y reuniones cuando sus conectores autorizados estén instalados.")
             }
         }
     }
@@ -223,7 +278,6 @@ private fun PersonalizationScreen(
 ) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Personalización", style = MaterialTheme.typography.headlineMedium)
-        Text("Define cómo debe representarte y asistirte tu yo digital.")
         OutlinedTextField(name, onName, Modifier.fillMaxWidth(), label = { Text("Cómo quieres que te llame") })
         OutlinedTextField(role, onRole, Modifier.fillMaxWidth(), label = { Text("Profesión y responsabilidades") }, minLines = 2)
         OutlinedTextField(languages, onLanguages, Modifier.fillMaxWidth(), label = { Text("Idiomas") })
@@ -232,24 +286,35 @@ private fun PersonalizationScreen(
         OutlinedTextField(values, onValues, Modifier.fillMaxWidth(), label = { Text("Principios y límites que debe respetar") }, minLines = 2)
         Button(onClick = onSave, Modifier.fillMaxWidth()) { Text("Guardar mi perfil") }
         Button(onClick = onBack, Modifier.fillMaxWidth()) { Text("Volver") }
-        Text("Los datos se guardan localmente en esta beta. La protección con SQLCipher se integrará en la siguiente fase.", style = MaterialTheme.typography.bodySmall)
     }
 }
 
 @Composable
 private fun ModelSettingsScreen(
+    options: List<ModelOption>, selected: String, onSelected: (String) -> Unit,
     status: String, progress: Float, busy: Boolean, backend: String, device: DeviceSnapshot,
     onInstall: () -> Unit, onBack: () -> Unit
 ) {
+    val appContext = androidx.compose.ui.platform.LocalContext.current
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Motor de inteligencia", style = MaterialTheme.typography.headlineMedium)
-        Text("Qwen3-4B · GGUF · Q4_K_M")
-        Text("El archivo se descarga una sola vez y permanece en el almacenamiento privado al actualizar la aplicación.")
+        Text("Elige el modelo de Mi Doble", style = MaterialTheme.typography.headlineMedium)
+        Text("Puedes cambiarlo cuando quieras. Los modelos que descargues permanecerán guardados.")
+        options.forEach { option ->
+            val installed = option.artifact != null && ModelDownloader.isValidModel(File(appContext.filesDir, "models/${option.artifact}"))
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(option.name, style = MaterialTheme.typography.titleMedium)
+                    Text(option.description, style = MaterialTheme.typography.bodySmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { onSelected(option.name) }, enabled = !busy) { Text(if (selected == option.name) "Seleccionado" else "Elegir") }
+                        Text(when { installed -> "Instalado"; option.artifact == null -> "Próximamente"; else -> "Disponible" })
+                    }
+                }
+            }
+        }
         if (busy) LinearProgressIndicator(progress = { progress }, Modifier.fillMaxWidth())
         Text(status)
-        Button(onClick = onInstall, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
-            Text(if (busy) "Preparando…" else "Instalar o reparar modelo")
-        }
+        Button(onClick = onInstall, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text(if (selected == "Qwen3") "Descargar e instalar" else "Instalador no disponible todavía") }
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text("Diagnóstico", style = MaterialTheme.typography.titleMedium)
@@ -262,6 +327,33 @@ private fun ModelSettingsScreen(
             }
         }
         Button(onClick = onBack, Modifier.fillMaxWidth()) { Text("Volver") }
+    }
+}
+
+@Composable
+private fun AgencySettingsScreen(
+    voiceMode: String, onVoiceMode: (String) -> Unit,
+    customVoiceLabel: String, onCustomVoiceLabel: (String) -> Unit,
+    calls: Boolean, onCalls: (Boolean) -> Unit, meetings: Boolean, onMeetings: (Boolean) -> Unit,
+    onSave: () -> Unit, onBack: () -> Unit
+) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Voz y permisos", style = MaterialTheme.typography.headlineMedium)
+        Text("Elige la voz que utilizará Mi Doble. La elección de voz no activa por sí sola una llamada o reunión.")
+        listOf("Voz del dispositivo", "Mi voz personalizada", "Otra voz").forEach { label ->
+            Button(onClick = { onVoiceMode(label) }, modifier = Modifier.fillMaxWidth()) {
+                Text(if (voiceMode == label) "✓ $label" else label)
+            }
+        }
+        if (voiceMode == "Mi voz personalizada") {
+            OutlinedTextField(customVoiceLabel, onCustomVoiceLabel, Modifier.fillMaxWidth(), label = { Text("Nombre de mi voz autorizada") })
+            Text("La creación de la voz personalizada requerirá una muestra que aportes, autorización expresa y un motor compatible.")
+        }
+        Button(onClick = { onCalls(!calls) }, modifier = Modifier.fillMaxWidth()) { Text(if (calls) "Usar voz en llamadas: activado" else "Usar voz en llamadas: desactivado") }
+        Button(onClick = { onMeetings(!meetings) }, modifier = Modifier.fillMaxWidth()) { Text(if (meetings) "Usar voz en reuniones: activado" else "Usar voz en reuniones: desactivado") }
+        Text("Mi Doble se identificará como asistente de IA al intervenir. Esta preferencia no oculta esa identidad.")
+        Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) { Text("Guardar preferencias") }
+        Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Volver") }
     }
 }
 
