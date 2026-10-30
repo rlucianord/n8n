@@ -2,8 +2,8 @@
 
 ## Components
 
-- **Android app (production target):** native Kotlin application, local UI, permissions, lifecycle, and device storage.
-- **On-device inference:** llama.cpp Android native library through JNI, loading a local Qwen3-4B GGUF model. No Ollama, hosted LLM, or automatic cloud fallback.
+- **Android app (production target):** native Kotlin application, Compose diagnostics UI, permissions, lifecycle, and device storage. Baseline compatibility and model-specific runtime eligibility are separate pure Kotlin policies with unit tests.
+- **On-device inference:** llama.cpp is being built as an Android native library through JNI. The current milestone only initializes the CPU backend and reports system information; GGUF loading, chat formatting, and token generation are still pending. The intended model candidate remains local Qwen3-4B GGUF. No Ollama, hosted LLM, or automatic cloud fallback.
 - **Mi Doble Python API (development/test harness):** FastAPI endpoints and services used in Codespaces with fictitious data. It is not required to run inference in production Android.
 - **Model provider contract:** Python LanguageModelProvider protocol for development; Android implements the same role/content-in, text-out contract around native llama.cpp.
 - **Local storage:** SQLCipher-backed SQLite on Android for profile, conversations, memories, settings, and audit records. Python SQLCipher is used for development tests; cross-platform file compatibility must be verified explicitly.
