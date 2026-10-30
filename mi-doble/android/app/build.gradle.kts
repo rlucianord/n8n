@@ -8,7 +8,8 @@ val stableKeystorePassword = System.getenv("MIDOBLE_KEYSTORE_PASSWORD")
 val stableKeyAlias = System.getenv("MIDOBLE_KEY_ALIAS")
 val stableKeyPassword = System.getenv("MIDOBLE_KEY_PASSWORD")
 
-android {    namespace = "com.midoble.app"
+android {
+    namespace = "com.midoble.app"
     compileSdk = 36
     ndkVersion = "28.2.13676358"
 
