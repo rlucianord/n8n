@@ -27,7 +27,6 @@ import androidx.compose.ui.unit.dp
 import java.util.Locale
 
 private const val GIB = 1024.0 * 1024.0 * 1024.0
-private const val MIN_RAM_BYTES = 4.0 * GIB
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,8 +42,8 @@ class MainActivity : ComponentActivity() {
             apiLevel = Build.VERSION.SDK_INT,
             totalRamBytes = memory.totalMem,
             availableRamBytes = memory.availMem,
-            totalStorageBytes = storage.totalBytes,
-            availableStorageBytes = storage.availableBytes
+            dataPartitionBytes = storage.totalBytes,
+            availableDataPartitionBytes = storage.availableBytes
         )
 
         setContent {
@@ -67,16 +66,30 @@ private data class DeviceSnapshot(
     val apiLevel: Int,
     val totalRamBytes: Long,
     val availableRamBytes: Long,
-    val totalStorageBytes: Long,
-    val availableStorageBytes: Long
+    val dataPartitionBytes: Long,
+    val availableDataPartitionBytes: Long
 ) {
-    val osCompatible: Boolean get() = apiLevel >= 34
-    val ramCompatible: Boolean get() = totalRamBytes >= MIN_RAM_BYTES
-    val meetsBaseline: Boolean get() = osCompatible && ramCompatible
+    // The advertised storage capacity cannot be inferred reliably from StatFs.
+    // It remains unverified until confirmed from the device specifications.
+    val compatibility: DeviceCompatibilityReport
+        get() = DeviceCompatibilityPolicy.evaluate(
+            androidApi = apiLevel,
+            totalRamBytes = totalRamBytes,
+            declaredStorageGb = null
+        )
 }
 
 @Composable
 private fun CompatibilityDashboard(device: DeviceSnapshot) {
+    val report = device.compatibility
+    val baselineLabel = when {
+        !report.androidSupported -> "Android no compatible"
+        !report.ramSupported -> "RAM inferior al mínimo"
+        report.storageBelowMinimum -> "Almacenamiento inferior al mínimo"
+        !report.storageVerified -> "Android y RAM cumplen; almacenamiento por confirmar"
+        else -> "Requisitos mínimos confirmados"
+    }
+
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -86,31 +99,25 @@ private fun CompatibilityDashboard(device: DeviceSnapshot) {
         InfoCard("Dispositivo", device.manufacturer + " " + device.model)
         InfoCard(
             "Android",
-            device.androidVersion + " (API " + device.apiLevel + ") — " + status(device.osCompatible)
+            device.androidVersion + " (API " + device.apiLevel + ") — " + status(report.androidSupported)
         )
         InfoCard(
             "Memoria RAM",
             formatBytes(device.totalRamBytes) + " total; " +
-                formatBytes(device.availableRamBytes) + " disponible — " + status(device.ramCompatible)
+                formatBytes(device.availableRamBytes) + " disponible — " + status(report.ramSupported)
         )
         InfoCard(
-            "Partición de datos interna",
-            formatBytes(device.totalStorageBytes) + " total; " +
-                formatBytes(device.availableStorageBytes) + " disponible"
+            "Almacenamiento interno",
+            formatBytes(device.dataPartitionBytes) + " en partición de datos; " +
+                formatBytes(device.availableDataPartitionBytes) + " disponibles. Capacidad comercial: por confirmar."
         )
         Spacer(modifier = Modifier.height(4.dp))
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    if (device.meetsBaseline) "Android y RAM: cumplen" else "Android o RAM: no cumplen",
-                    style = MaterialTheme.typography.titleMedium
-                )
+                Text(baselineLabel, style = MaterialTheme.typography.titleMedium)
                 Text("Requisitos del proyecto: Android 14+, 4 GB de RAM y 64 GB de almacenamiento total.")
-                Text("Nota: Android informa aquí el tamaño de la partición de datos, no la capacidad comercial exacta del teléfono. Confirma los 64 GB en las especificaciones del dispositivo.")
-                Text(
-                    "Esto no garantiza que Qwen3-4B pueda ejecutarse. Antes de cargarlo " +
-                        "se comprobarán la memoria disponible, la arquitectura y el rendimiento."
-                )
+                Text("La partición de datos que reporta Android no equivale a la capacidad comercial anunciada del teléfono. Los 64 GB deben confirmarse en las especificaciones del dispositivo.")
+                Text("Cumplir los requisitos de instalación no garantiza que Qwen3-4B pueda ejecutarse. Antes de cargarlo se comprobarán la memoria disponible, la arquitectura y el rendimiento.")
             }
         }
         Text(
