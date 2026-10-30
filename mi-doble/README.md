@@ -20,7 +20,7 @@ The bootstrap now includes:
 - FastAPI endpoints for those operations.
 - API integration tests using a temporary encrypted database.
 
-Model loading, speech, avatar, Android app, telephony, Zoom integration, policy-management endpoints, and authentication for non-loopback deployments are not enabled yet.
+An offline Transformers/PyTorch provider interface is now present. It only loads a model from an existing local directory (`local_files_only=True`) and defaults to CPU. No model weights are selected or downloaded yet. Chat generation is not exposed by the API until a model is benchmarked and configured. Speech, avatar, Android app, telephony, Zoom integration, policy-management endpoints, and authentication for non-loopback deployments are not enabled yet.
 
 ## API
 
@@ -36,6 +36,7 @@ Run the service on loopback and open `/docs` for the interactive API reference.
 | GET / POST | `/memories` | Search or save memories |
 | DELETE | `/memories/{id}` | Delete a memory |
 | GET | `/audit` | Read the audit log |
+| POST | `/conversations/{id}/context` | Assemble recent history and relevant memories for a model |
 
 Memory is not automatically inferred from messages. A memory is saved only when an explicit API request creates it. The context endpoint ranks existing memories by lexical overlap with the current message, includes recent conversation history, and returns a model-ready message list. It does not persist the current message. The context includes instructions to disclose AI identity and require explicit authorization for external actions.
 
@@ -85,6 +86,10 @@ uvicorn app.main:app --host 127.0.0.1 --port 8765
 ```
 
 Open `http://127.0.0.1:8765/docs` or `http://127.0.0.1:8765/health`.
+
+### Optional local language model
+
+The optional `requirements-local-llm.txt` installs Transformers and PyTorch. Do not install it in Codespaces as part of the database/API tests. Install it on the target PC only after selecting and benchmarking a compatible model. Model files must be downloaded separately through a deliberate, trusted process and stored outside the public repository. The provider uses `local_files_only=True`; it will not fetch weights from the internet at runtime.
 
 ## Tests
 
