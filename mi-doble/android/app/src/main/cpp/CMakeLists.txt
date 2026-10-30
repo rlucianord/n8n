@@ -3,7 +3,7 @@ project(midoble_native LANGUAGES C CXX)
 
 include(FetchContent)
 
-# CPU-first portable build. Pin upstream to an exact commit for reproducibility.
+# CPU-first portable build. Pin upstream to a fixed release tag for reproducibility.
 set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
