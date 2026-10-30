@@ -11,7 +11,9 @@ This is the native Android application module. It is separate from the Python Fa
 - Kotlin and Jetpack Compose
 - No network permission and no model download in this initial milestone
 
-The diagnostic screen reads Android version, total and available RAM, and total and available internal data-partition storage. Passing these installation baseline checks does not guarantee that a specific local language model will fit in memory.
+The diagnostic screen reads Android version, total and available RAM, and total and available internal data-partition storage. A separate pure Kotlin policy evaluates Android API level, total RAM, and the declared storage capacity. Because Android's data-partition size is not the phone's advertised capacity, the 64 GB requirement remains pending until verified from the device specifications. Passing the installation baseline does not guarantee that a specific local language model will fit in memory.
+
+The policy is covered by eight JVM unit tests in `app/src/test`. Run them with `gradle --no-daemon :app:testDebugUnitTest`.
 
 ## Build
 
