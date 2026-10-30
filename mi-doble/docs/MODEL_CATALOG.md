@@ -1,13 +1,12 @@
 # Catálogo de modelos de Mi Doble
 
-El catálogo visible debe mostrar exactamente cuatro opciones, sin mostrar cuantización, formatos de archivo ni otros detalles técnicos en la pantalla principal:
+El catálogo visible debe mostrar exactamente tres opciones, sin mostrar cuantización, formatos de archivo ni otros detalles técnicos en la pantalla principal:
 
 1. Phi-4
 2. Qwen3
-3. Llama 3.2
-4. Gemma 3
+3. Gemma 3
 
-GPT-OSS queda excluido. SmolLM2 no forma parte de este catálogo.
+GPT-OSS, Llama 3.2 y SmolLM2 quedan excluidos de este catálogo.
 
 ## Reglas de producto
 
