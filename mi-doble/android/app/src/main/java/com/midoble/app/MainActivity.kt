@@ -47,7 +47,6 @@ private data class ModelOption(val name: String, val description: String, val ar
 private val modelOptions = listOf(
     ModelOption("Phi-4", "Un modelo de Microsoft para razonamiento y tareas generales.", null),
     ModelOption("Qwen3", "Modelo multilingüe para tareas generales. Disponible para instalación.", "Qwen3-4B-Q4_K_M.gguf"),
-    ModelOption("Llama 3.2", "Modelo compacto para asistencia cotidiana.", null),
     ModelOption("Gemma 3", "Modelo compacto de Google.", null)
 )
 
@@ -363,7 +362,7 @@ private fun DigitalSelfHome(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Box {
-                IconButton(onClick = onMenu) { Text("☰", style = MaterialTheme.typography.headlineMedium) }
+                IconButton(onClick = onMenu) { Text("⚙", style = MaterialTheme.typography.headlineMedium) }
                 DropdownMenu(expanded = menuExpanded, onDismissRequest = onDismissMenu) {
                     DropdownMenuItem(text = { Text("Personalización") }, onClick = onProfile)
                     DropdownMenuItem(text = { Text("Modelos") }, onClick = onModel)
