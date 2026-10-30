@@ -28,7 +28,7 @@ class DeviceCompatibilityPolicyTest {
     }
 
     @Test
-    fun acceptsExactlyFourGiBOfRam() {
+    fun acceptsExactlyFourAdvertisedGbOfRam() {
         val report = DeviceCompatibilityPolicy.evaluate(
             androidApi = 34,
             totalRamBytes = DeviceCompatibilityPolicy.MIN_RAM_BYTES,
