@@ -18,4 +18,4 @@ print(DB_PATH)
     root = Path(__file__).resolve().parents[1]
     subprocess.run([sys.executable, "-c", code], cwd=root, env=env, check=True)
     header = (tmp_path / "test.db").read_bytes()[:16]
-    assert header != b"SQLite format 3\\x00"
+    assert header != b"SQLite format 3\x00"
