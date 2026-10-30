@@ -17,8 +17,8 @@ android {
         applicationId = "com.midoble.app"
         minSdk = 34
         targetSdk = 36
-        versionCode = 5
-        versionName = "0.3.0-beta2"
+        versionCode = 6
+        versionName = "0.3.0-beta3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
