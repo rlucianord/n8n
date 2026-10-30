@@ -3,11 +3,11 @@ package com.midoble.app
 /** Installation requirements agreed for the first Mi Doble Android release. */
 object DeviceCompatibilityPolicy {
     const val MIN_ANDROID_API = 34
-    const val MIN_RAM_GIB = 4L
+    const val MIN_RAM_GB = 4L
     const val MIN_STORAGE_GIB = 64
 
-    private const val BYTES_PER_GIB = 1024L * 1024L * 1024L
-    const val MIN_RAM_BYTES = MIN_RAM_GIB * BYTES_PER_GIB
+    private const val BYTES_PER_GB = 1_000_000_000L
+    const val MIN_RAM_BYTES = MIN_RAM_GB * BYTES_PER_GB
 
     /**
      * declaredStorageGb must come from the device specifications or an explicit
