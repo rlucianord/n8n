@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 #include "llama.h"
 
@@ -134,7 +135,6 @@ Java_com_midoble_app_NativeLlamaBridge_nativeGenerate(
         const llama_token token = llama_sampler_sample(sampler, g_context, -1);
         if (llama_vocab_is_eog(g_vocab, token)) break;
         output += token_piece(token);
-        llama_sampler_accept(sampler, token);
 
         llama_batch next = llama_batch_get_one(const_cast<llama_token *>(&token), 1);
         if (llama_decode(g_context, next) != 0) break;
