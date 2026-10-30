@@ -1,6 +1,9 @@
 package com.midoble.app
 
+import android.Manifest
 import android.app.ActivityManager
+import android.content.pm.PackageManager
+import android.telephony.SubscriptionManager
 import android.os.Bundle
 import android.os.Environment
 import android.os.StatFs
@@ -67,6 +70,9 @@ class MainActivity : ComponentActivity() {
     private val profileGoals = mutableStateOf("")
     private val profileStyle = mutableStateOf("Directo, claro y práctico")
     private val profileValues = mutableStateOf("Privacidad, autonomía y continuidad")
+    private val simLines = mutableStateOf<List<SimLine>>(emptyList())
+    private val selectedSimSlot = mutableStateOf(-1)
+    private val simPermissionGranted = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -82,6 +88,8 @@ class MainActivity : ComponentActivity() {
         customVoiceLabel.value = prefs.getString("custom_voice_label", "") ?: ""
         voiceEnabledForCalls.value = prefs.getBoolean("voice_use_calls", false)
         voiceEnabledForMeetings.value = prefs.getBoolean("voice_use_meetings", false)
+        selectedSimSlot.value = prefs.getInt("preferred_sim_slot", -1)
+        refreshSimLines()
 
         val manager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
         val memory = ActivityManager.MemoryInfo().also(manager::getMemoryInfo)
@@ -126,6 +134,13 @@ class MainActivity : ComponentActivity() {
                             backend = backendInfo.value, device = snapshot,
                             onInstall = ::installSelectedModel, onBack = { screen.value = "home" }
                         )
+                        "phone" -> PhoneSettingsScreen(
+                            lines = simLines.value, selectedSlot = selectedSimSlot.value,
+                            permissionGranted = simPermissionGranted.value,
+                            onRequestPermission = { requestPermissions(arrayOf(Manifest.permission.READ_PHONE_STATE), 410) },
+                            onSelect = { slot -> selectedSimSlot.value = slot; getSharedPreferences("mi_doble_profile", MODE_PRIVATE).edit().putInt("preferred_sim_slot", slot).apply() },
+                            onRefresh = ::refreshSimLines, onBack = { screen.value = "home" }
+                        )
                         "agency" -> AgencySettingsScreen(
                             voiceMode = voiceMode.value, onVoiceMode = { voiceMode.value = it },
                             customVoiceLabel = customVoiceLabel.value,
@@ -143,7 +158,8 @@ class MainActivity : ComponentActivity() {
                             onDismissMenu = { settingsMenuExpanded.value = false },
                             onProfile = { settingsMenuExpanded.value = false; screen.value = "profile" },
                             onModel = { settingsMenuExpanded.value = false; screen.value = "model" },
-                            onAgency = { settingsMenuExpanded.value = false; screen.value = "agency" }
+                            onAgency = { settingsMenuExpanded.value = false; screen.value = "agency" },
+                            onPhone = { settingsMenuExpanded.value = false; screen.value = "phone" }
                         )
                     }
                 }
@@ -151,6 +167,21 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun refreshSimLines() {
+        simPermissionGranted.value = checkSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
+        if (!simPermissionGranted.value) { simLines.value = emptyList(); return }
+        try {
+            val manager = getSystemService(TELEPHONY_SUBSCRIPTION_SERVICE) as SubscriptionManager
+            simLines.value = manager.activeSubscriptionInfoList.orEmpty().map { info ->
+                SimLine(info.simSlotIndex, info.subscriptionId, info.carrierName?.toString()?.takeIf { it.isNotBlank() } ?: "Operador móvil", info.displayName?.toString()?.takeIf { it.isNotBlank() } ?: "SIM ${info.simSlotIndex + 1}", info.number?.takeIf { it.isNotBlank() })
+            }
+        } catch (_: SecurityException) { simLines.value = emptyList() } catch (_: UnsupportedOperationException) { simLines.value = emptyList() }
+    }
+    override fun onResume() { super.onResume(); refreshSimLines() }
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 410) refreshSimLines()
+    }
     private fun saveProfile() {
         getSharedPreferences("mi_doble_profile", MODE_PRIVATE).edit()
             .putString("name", profileName.value.trim())
@@ -245,6 +276,34 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private data class SimLine(val slot: Int, val subscriptionId: Int, val carrier: String, val displayName: String, val number: String?)
+
+@Composable
+private fun PhoneSettingsScreen(lines: List<SimLine>, selectedSlot: Int, permissionGranted: Boolean, onRequestPermission: () -> Unit, onSelect: (Int) -> Unit, onRefresh: () -> Unit, onBack: () -> Unit) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Llamadas y líneas SIM", style = MaterialTheme.typography.headlineMedium)
+        Text("Mi Doble detecta las tarjetas SIM activas. Puedes marcar una como línea preferida para futuras funciones telefónicas.")
+        Text("Android puede ocultar el número de teléfono de la SIM. Si no aparece, eso no significa que la tarjeta no esté instalada.")
+        if (!permissionGranted) {
+            Text("Necesitamos permiso para consultar las SIM instaladas. Mi Doble solo lo utilizará para mostrar las líneas disponibles.")
+            Button(onClick = onRequestPermission, modifier = Modifier.fillMaxWidth()) { Text("Permitir consultar las SIM") }
+        } else if (lines.isEmpty()) {
+            Text("No se detectaron SIM activas. Comprueba que estén instaladas y habilitadas.")
+            Button(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) { Text("Volver a buscar SIM") }
+        } else {
+            lines.forEach { line -> Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("SIM " + (line.slot + 1) + " · " + line.carrier, style = MaterialTheme.typography.titleMedium)
+                Text(line.displayName)
+                Text("Número: " + (line.number ?: "No informado por Android/operador"))
+                Button(onClick = { onSelect(line.slot) }, modifier = Modifier.fillMaxWidth()) { Text(if (selectedSlot == line.slot) "Línea preferida" else "Usar como línea preferida") }
+            } } }
+            Button(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) { Text("Actualizar lista") }
+        }
+        Text("La línea preferida queda guardada en Mi Doble. En llamadas entrantes, la red entrega la llamada a la SIM cuyo número fue marcado; esta preferencia no cambia ese enrutamiento ni habilita todavía que la IA escuche la llamada.", style = MaterialTheme.typography.bodySmall)
+        Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Volver") }
+    }
+}
+
 private data class DeviceSnapshot(
     val manufacturer: String, val model: String, val androidVersion: String,
     val apiLevel: Int, val totalRamBytes: Long, val availableRamBytes: Long,
@@ -255,7 +314,7 @@ private data class DeviceSnapshot(
 private fun DigitalSelfHome(
     name: String, role: String, goals: String, modelReady: Boolean, selectedModel: String,
     modelStatus: String, menuExpanded: Boolean, onMenu: () -> Unit, onDismissMenu: () -> Unit,
-    onProfile: () -> Unit, onModel: () -> Unit, onAgency: () -> Unit
+    onProfile: () -> Unit, onModel: () -> Unit, onAgency: () -> Unit, onPhone: () -> Unit
 ) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
@@ -272,6 +331,7 @@ private fun DigitalSelfHome(
                     DropdownMenuItem(text = { Text("Personalización") }, onClick = onProfile)
                     DropdownMenuItem(text = { Text("Modelos") }, onClick = onModel)
                     DropdownMenuItem(text = { Text("Voz y permisos") }, onClick = onAgency)
+                    DropdownMenuItem(text = { Text("Llamadas y SIM") }, onClick = onPhone)
                 }
             }
             Column {
@@ -301,10 +361,11 @@ private fun DigitalSelfHome(
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Llamadas telefónicas", style = MaterialTheme.typography.titleMedium)
-                Text("Estado: todavía no conectado")
+                Text("La SIM que recibe una llamada es la línea a cuyo número llama la persona.")
+                Text("La respuesta automática con IA aún no está activa: Android restringe el acceso de aplicaciones comunes al audio de llamadas celulares.")
                 Text("La respuesta automática a llamadas celulares requiere integrar telefonía, gestión de llamadas y acceso autorizado al audio. Esta versión aún no contesta llamadas.")
                 Text("Próximo paso: habilitar una vía de llamada compatible y probar la conversación de extremo a extremo.", style = MaterialTheme.typography.bodySmall)
-                Button(onClick = onAgency, modifier = Modifier.fillMaxWidth()) { Text("Revisar voz y permisos") }
+                Button(onClick = onPhone, modifier = Modifier.fillMaxWidth()) { Text("Configurar líneas SIM") }
             }
         }
 
