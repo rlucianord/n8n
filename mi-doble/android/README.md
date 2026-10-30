@@ -21,7 +21,11 @@ A CPU-first llama.cpp native library is wired through Android NDK, CMake, and JN
 
 Open this directory in Android Studio, allow Gradle sync, then run the app on an Android 14+ device or emulator. The project targets Android API 36 and Java 17. The build uses Android Gradle Plugin 9.5.0, Gradle 9.6.0, Kotlin 2.4.21, and Compose BOM 2026.06.01 (Compose 1.11 line, compatible with compileSdk 36).
 
-The Gradle wrapper scripts are not committed in this source-only bootstrap. A GitHub Actions workflow builds the app and native library using pinned Gradle, NDK, and CMake versions. Android Studio can also generate a wrapper for local development.
+The Gradle wrapper scripts are not committed in this source-only bootstrap. The GitHub Actions workflow builds on `ubuntu-latest`, runs JVM unit tests, compiles the native llama.cpp/JNI library, assembles the debug APK, and uploads it as the `mi-doble-debug-apk` artifact.
+
+### Codespaces on Alpine Linux
+
+The Android SDK's Linux CMake binary requires a glibc-compatible environment. Alpine uses musl, so native configuration can fail with an error such as `Error relocating .../cmake/.../bin/cmake: fcntl64: symbol not found`. This is a host-environment incompatibility, not an application C++ source error. Do not remove the native build or bypass JNI to work around it. Run the complete APK build using the Ubuntu GitHub Actions workflow or an Ubuntu-based development environment.
 
 ## Next implementation steps
 
