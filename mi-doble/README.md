@@ -87,6 +87,10 @@ uvicorn app.main:app --host 127.0.0.1 --port 8765
 
 Open `http://127.0.0.1:8765/docs` or `http://127.0.0.1:8765/health`.
 
+### Hardware diagnostic
+
+Before selecting model weights, run `python scripts/diagnose_hardware.py` on the actual target PC (not Codespaces). It reports CPU, physical RAM, GPU/VRAM when detectable, Python, and free disk space. The script uses only the Python standard library unless PyTorch is already installed.
+
 ### Optional local language model
 
 The optional `requirements-local-llm.txt` installs Transformers and PyTorch. Do not install it in Codespaces as part of the database/API tests. Install it on the target PC only after selecting and benchmarking a compatible model. Model files must be downloaded separately through a deliberate, trusted process and stored outside the public repository. The provider uses `local_files_only=True`; it will not fetch weights from the internet at runtime.
