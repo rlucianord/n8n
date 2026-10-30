@@ -1,49 +1,46 @@
 from __future__ import annotations
 
-import pytest
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+
+def test_agency_settings_and_action_policies(tmp_path: Path):
+    env = os.environ.copy()
+    env["MIDOBLE_DB_KEY"] = "c" * 64
+    env["MIDOBLE_DB_PATH"] = str(tmp_path / "agency-test.db")
+    env["MIDOBLE_HOST"] = "127.0.0.1"
+
+    code = r"""
 from fastapi.testclient import TestClient
-
 from app.main import app
-from app.services import agency
 
+with TestClient(app) as client:
+    policies = client.get("/agency/policies")
+    assert policies.status_code == 200
+    assert policies.json()
+    assert all(not item["enabled"] for item in policies.json())
 
-@pytest.fixture
-def client(tmp_path, monkeypatch):
-    from app import database
-    monkeypatch.setattr(database, "DB_PATH", tmp_path / "agency.db")
-    monkeypatch.setattr(database, "DB_KEY", "test-key-" + "x" * 40)
-    database.initialize_database()
-    agency.initialize_agency()
-    return TestClient(app)
-
-
-def test_default_policies_are_disabled(client):
-    policies = client.get("/agency/policies").json()
-    assert policies
-    assert all(not item["enabled"] for item in policies)
-
-
-def test_user_can_configure_voice_and_model(client):
-    response = client.put("/agency/settings", json={"values": {
+    settings = client.put("/agency/settings", json={"values": {
         "voice_mode": "custom_user_voice",
         "voice_name": "Mi voz",
         "active_model": "Phi-4",
     }})
-    assert response.status_code == 200
-    assert response.json()["voice_mode"] == "custom_user_voice"
-    assert response.json()["active_model"] == "Phi-4"
+    assert settings.status_code == 200
+    assert settings.json()["voice_mode"] == "custom_user_voice"
+    assert settings.json()["active_model"] == "Phi-4"
 
+    forbidden = client.put("/agency/settings", json={"values": {
+        "voice_disclose_ai": False
+    }})
+    assert forbidden.status_code == 422
 
-def test_ai_disclosure_cannot_be_disabled(client):
-    response = client.put("/agency/settings", json={"values": {"voice_disclose_ai": False}})
-    assert response.status_code == 422
-
-
-def test_action_requires_user_enablement_and_confirmation(client):
     denied = client.post("/agency/decisions/evaluate", json={
         "action": "email.send", "user_confirmed": True
-    }).json()
-    assert denied["status"] == "denied"
+    })
+    assert denied.status_code == 200
+    assert denied.json()["status"] == "denied"
 
     configured = client.put("/agency/policies/email.send", json={
         "enabled": True, "requires_confirmation": True
@@ -52,19 +49,25 @@ def test_action_requires_user_enablement_and_confirmation(client):
 
     pending = client.post("/agency/decisions/evaluate", json={
         "action": "email.send", "user_confirmed": False
-    }).json()
-    assert pending["status"] == "pending"
+    })
+    assert pending.json()["status"] == "pending"
 
     approved = client.post("/agency/decisions/evaluate", json={
         "action": "email.send", "user_confirmed": True
-    }).json()
-    assert approved["authorized"] is True
-    assert approved["execution"] == "not_connected"
+    })
+    assert approved.json()["authorized"] is True
+    assert approved.json()["execution"] == "not_connected"
 
-
-def test_catalog_has_four_models_and_excludes_gpt_oss(client):
-    catalog = client.get("/agency/model-catalog").json()
-    assert [item["name"] for item in catalog["models"]] == [
+    catalog = client.get("/agency/model-catalog")
+    assert [item["name"] for item in catalog.json()["models"]] == [
         "Phi-4", "Qwen3", "Llama 3.2", "Gemma 3"
     ]
-    assert all("GPT-OSS" not in item["name"] for item in catalog["models"])
+    assert all("GPT-OSS" not in item["name"] for item in catalog.json()["models"])
+"""
+    root = Path(__file__).resolve().parents[1]
+    subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=root,
+        env=env,
+        check=True,
+    )
