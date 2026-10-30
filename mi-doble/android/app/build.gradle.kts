@@ -3,8 +3,12 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-android {
-    namespace = "com.midoble.app"
+val stableKeystorePath = System.getenv("MIDOBLE_KEYSTORE_PATH")
+val stableKeystorePassword = System.getenv("MIDOBLE_KEYSTORE_PASSWORD")
+val stableKeyAlias = System.getenv("MIDOBLE_KEY_ALIAS")
+val stableKeyPassword = System.getenv("MIDOBLE_KEY_PASSWORD")
+
+android {    namespace = "com.midoble.app"
     compileSdk = 36
     ndkVersion = "28.2.13676358"
 
@@ -34,6 +38,25 @@ android {
                     "-DLLAMA_BUILD_COMMON=OFF",
                     "-DBUILD_SHARED_LIBS=OFF"
                 )
+            }
+        }
+    }
+
+    signingConfigs {
+        create("stableBeta") {
+            if (!stableKeystorePath.isNullOrBlank()) {
+                storeFile = file(stableKeystorePath)
+                storePassword = stableKeystorePassword
+                keyAlias = stableKeyAlias
+                keyPassword = stableKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("debug") {
+            if (!stableKeystorePath.isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("stableBeta")
             }
         }
     }
