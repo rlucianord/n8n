@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.config import validate_config
 from app.database import connection, initialize_database
+from app.services import context as context_service
 from app.services import memory
 
 validate_config()
@@ -44,6 +45,12 @@ class MemoryCreate(StrictModel):
     category: str = Field(min_length=1, max_length=80)
     content: str = Field(min_length=1, max_length=20000)
     source: str = Field(default="user", min_length=1, max_length=40)
+
+
+class ContextRequest(StrictModel):
+    current_message: str = Field(min_length=1, max_length=20000)
+    message_limit: int = Field(default=20, ge=1, le=100)
+    memory_limit: int = Field(default=8, ge=0, le=30)
 
 
 @app.get("/health", tags=["system"])
@@ -174,3 +181,18 @@ def read_audit_log(
     offset: int = Query(default=0, ge=0),
 ):
     return memory.get_audit_log(limit=limit, offset=offset)
+
+
+@app.post("/conversations/{conversation_id}/context", tags=["context"])
+def create_context(conversation_id: str, payload: ContextRequest):
+    try:
+        return context_service.build_context(
+            conversation_id=conversation_id,
+            current_message=payload.current_message,
+            message_limit=payload.message_limit,
+            memory_limit=payload.memory_limit,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
