@@ -1,60 +1,47 @@
 # Mi Doble — Android application
 
-## Beta 0.2.0-beta1
+## Beta 0.2.0-beta2
 
-The first functional beta provides:
+The Android beta now installs its predefined model automatically from the official Qwen Hugging Face repository:
 
-- A native Android chat interface built with Kotlin and Jetpack Compose.
-- Local GGUF file selection through Android's system document picker.
-- Copying the selected model into the app-private `files/models` directory.
-- Loading the model through the JNI bridge into the CPU llama.cpp runtime.
-- Local text generation using the Qwen3 chat-message format and a greedy sampler.
-- A basic device/runtime diagnostic panel.
+- Model: `Qwen/Qwen3-4B-GGUF`
+- File: `Qwen3-4B-Q4_K_M.gguf`
+- Revision pinned to: `34778e26c8fa5e8bc0daa2389a9f958cffb1aedd`
+- License shown by the upstream model repository: Apache-2.0.
+- Download size: approximately 2.5 GB.
 
-The model weights are not bundled in the APK and are not downloaded by the application. The user must provide a compatible GGUF file. The app does not request Internet permission and does not transmit prompts or model data. The current beta keeps conversation history only in memory for the current app session; persistent encrypted conversation storage is not yet integrated.
+The user no longer selects or imports a GGUF file. The first run presents one simple **Descargar e instalar modelo** action, shows download progress, validates the GGUF header and expected minimum size, saves the file in app-private storage, and loads it through the JNI llama.cpp runtime. Subsequent launches reuse and load the installed model automatically. A partial download is discarded and can be retried.
+
+The app requires Internet access only for the initial model download. Inference remains on-device; prompts and conversations are not sent to Hugging Face or any inference service. After installation, the app can run inference offline.
 
 ## Device baseline
 
 - Android 14 or newer (minSdk 34)
-- At least 4 GB total RAM
-- At least 64 GB total internal storage
-- Kotlin and Jetpack Compose
+- At least 4 GB total RAM baseline; this does not guarantee Qwen3-4B will run acceptably.
+- At least 3 GB free app data storage for download and installation.
 - CPU-first llama.cpp native runtime, pinned to upstream tag `b12003`
 - Supported APK ABIs: `arm64-v8a` and `x86_64`
-
-The diagnostic screen reports Android version, total and available RAM, ABIs, and data-partition storage. Android's data-partition size is not the phone's advertised storage capacity.
 
 ## Beta test flow
 
 1. Install the debug APK on an Android 14+ device.
-2. Obtain a compatible GGUF model file separately. Qwen3-4B Q4_K_M remains the target model, but this beta has not yet validated a specific model build on every device.
-3. Open Mi Doble and tap **Seleccionar GGUF**.
-4. Select the local `.gguf` file. The app copies it into private app storage.
-5. Tap **Cargar modelo** and wait for the native load operation to finish.
-6. Send a short test message in the conversation screen.
+2. Connect to Wi-Fi or another suitable Internet connection for the first model installation.
+3. Open Mi Doble and tap **Descargar e instalar modelo**.
+4. Wait for the download and automatic model load to finish.
+5. Send a short test message. Subsequent app launches reuse the downloaded model.
 
-The initial generation path uses a Qwen3-style prompt template, a 2048-token context, a maximum of 256 generated tokens, and greedy sampling. Long prompts are rejected by the beta guard. Model loading and generation run off the UI thread.
+The initial generation path uses a Qwen3-style prompt template, a 2048-token context, a maximum of 256 generated tokens, and greedy sampling. Model loading and generation run off the UI thread.
 
 ## Known beta limitations
 
-- No model download or model catalogue.
+- Download currently runs while the app remains open; Android background-download service and pause/resume are not yet implemented.
 - No persistent chat history or encrypted SQLCipher storage yet.
 - No streaming token display; the response appears after generation completes.
-- No multi-model management or model unload control yet.
-- No voice, external communications, n8n integration, or cloud services.
-- The beta has not yet been validated with a real Qwen3-4B GGUF on the target HONOR device. Native library initialization was verified separately; model load and inference must be tested on device.
+- No voice, external communications, n8n integration, or cloud inference.
+- The native model load and inference still require physical-device validation on representative Android 14+ hardware.
 
 ## Build and tests
 
-The GitHub Actions workflow builds on `ubuntu-latest`, runs Android JVM unit tests, compiles llama.cpp and the JNI library, assembles the debug APK, verifies it, and uploads the `mi-doble-debug-apk` artifact.
-
-Run locally from this directory with the configured Android SDK/NDK:
-
-```sh
-gradle --no-daemon :app:testDebugUnitTest
-gradle --no-daemon :app:assembleDebug
-```
-
-The Gradle wrapper scripts are not committed in this source-only bootstrap. Codespaces based on Alpine Linux may fail because the Android SDK CMake binary requires a glibc-compatible host; use the Ubuntu GitHub Actions workflow or an Ubuntu-based development environment.
+The GitHub Actions workflow builds on `ubuntu-latest`, runs Android JVM unit tests, compiles llama.cpp and the JNI library, assembles the debug APK, verifies it, and uploads a versioned artifact.
 
 Never commit model weights, database files, user conversations, or encryption keys to this repository.
