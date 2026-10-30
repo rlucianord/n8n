@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -26,7 +28,6 @@ import java.util.Locale
 
 private const val GIB = 1024.0 * 1024.0 * 1024.0
 private const val MIN_RAM_BYTES = 4.0 * GIB
-private const val MIN_STORAGE_BYTES = 64.0 * GIB
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -71,14 +72,13 @@ private data class DeviceSnapshot(
 ) {
     val osCompatible: Boolean get() = apiLevel >= 34
     val ramCompatible: Boolean get() = totalRamBytes >= MIN_RAM_BYTES
-    val storageCompatible: Boolean get() = totalStorageBytes >= MIN_STORAGE_BYTES
-    val meetsBaseline: Boolean get() = osCompatible && ramCompatible && storageCompatible
+    val meetsBaseline: Boolean get() = osCompatible && ramCompatible
 }
 
 @Composable
 private fun CompatibilityDashboard(device: DeviceSnapshot) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Text("Mi Doble", style = MaterialTheme.typography.headlineLarge)
@@ -94,18 +94,19 @@ private fun CompatibilityDashboard(device: DeviceSnapshot) {
                 formatBytes(device.availableRamBytes) + " disponible — " + status(device.ramCompatible)
         )
         InfoCard(
-            "Almacenamiento",
+            "Partición de datos interna",
             formatBytes(device.totalStorageBytes) + " total; " +
-                formatBytes(device.availableStorageBytes) + " disponible — " + status(device.storageCompatible)
+                formatBytes(device.availableStorageBytes) + " disponible"
         )
         Spacer(modifier = Modifier.height(4.dp))
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    if (device.meetsBaseline) "Requisitos mínimos: cumple" else "Requisitos mínimos: no cumple",
+                    if (device.meetsBaseline) "Android y RAM: cumplen" else "Android o RAM: no cumplen",
                     style = MaterialTheme.typography.titleMedium
                 )
-                Text("Base: Android 14+, 4 GB de RAM y 64 GB de almacenamiento total.")
+                Text("Requisitos del proyecto: Android 14+, 4 GB de RAM y 64 GB de almacenamiento total.")
+                Text("Nota: Android informa aquí el tamaño de la partición de datos, no la capacidad comercial exacta del teléfono. Confirma los 64 GB en las especificaciones del dispositivo.")
                 Text(
                     "Esto no garantiza que Qwen3-4B pueda ejecutarse. Antes de cargarlo " +
                         "se comprobarán la memoria disponible, la arquitectura y el rendimiento."
