@@ -21,7 +21,7 @@ object DeviceCompatibilityPolicy {
     ): DeviceCompatibilityReport {
         val androidSupported = androidApi >= MIN_ANDROID_API
         val ramSupported = totalRamBytes >= MIN_RAM_BYTES
-        val storageVerified = declaredStorageGb != null && declaredStorageGb >= MIN_STORAGE_GIB
+        val storageVerified = declaredStorageGb != null && declaredStorageGb >= MIN_STORAGE_GB
         val storageBelowMinimum = declaredStorageGb != null && declaredStorageGb < MIN_STORAGE_GIB
 
         return DeviceCompatibilityReport(
