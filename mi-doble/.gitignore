@@ -9,3 +9,12 @@ audio/
 recordings/
 *.db
 *.db-*
+
+# Android / Gradle
+android/.gradle/
+android/local.properties
+android/**/build/
+android/.idea/
+android/captures/
+*.apk
+*.aab
