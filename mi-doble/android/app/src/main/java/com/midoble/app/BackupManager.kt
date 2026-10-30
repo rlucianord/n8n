@@ -52,7 +52,7 @@ object BackupManager {
             ZipInputStream(BufferedInputStream(input)).use { zip ->
                 while (true) {
                     val entry = zip.nextEntry ?: break
-                    val name = entry.name.replace('\\\\', '/')
+                    val name = entry.name.replace('\\', '/')
                     when {
                         name == "mi-doble-backup/settings.json" -> settings = JSONObject(zip.readBytes().toString(Charsets.UTF_8))
                         name.startsWith("mi-doble-backup/models/") && !entry.isDirectory -> {
