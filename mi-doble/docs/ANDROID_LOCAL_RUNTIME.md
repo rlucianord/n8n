@@ -21,7 +21,7 @@ The initial model candidate is Qwen3-4B in GGUF format, Q4_K_M quantization. Thi
 
 Q4_K_M is the first quantization to benchmark because it substantially reduces memory compared with full precision. The model file itself will still occupy multiple gigabytes, and runtime memory also includes the context/KV cache, tokenizer, application, and Android OS.
 
-A phone with 8 GB RAM is a sensible initial test target; 12 GB or more is preferable for a 4B model and longer context. These are planning guidelines, not guarantees. We must obtain the exact phone model, RAM, chipset, Android version, and available storage before choosing the final context size and quantization. A smaller Qwen model or more aggressive quantization may be required on constrained devices.
+The agreed minimum installation baseline is Android 14 (API 34)+, 4 GB total RAM, and 64 GB total internal storage. The app is intended to support HONOR and Google Pixel devices without restricting compatibility to particular phone models; the actual Android version and hardware capabilities determine eligibility, not the brand name. These minimums do not guarantee that Qwen3-4B will fit or perform acceptably. Runtime model eligibility must additionally inspect currently available RAM, chipset/ABI, free storage, thermal limits, and the selected context/KV-cache size. On constrained devices, use a smaller model or a more memory-efficient quantization rather than attempting an unsafe allocation.
 
 ## Cross-platform contract
 
@@ -33,7 +33,7 @@ The SQLCipher database format and key derivation settings must be explicitly mat
 
 1. Benchmark Qwen3-4B GGUF Q4_K_M in the development environment using fictitious prompts only.
 2. Record load time, tokens/second, peak RAM, context size, and thermal behavior.
-3. Create the native Android llama.cpp wrapper and a small inference screen.
+3. Create the native Android llama.cpp wrapper and a small inference screen after the baseline app builds and the runtime capability policy is tested.
 4. Install a test build on the actual phone and repeat benchmarks.
 5. Implement Android local storage and verify SQLCipher interoperability separately.
 6. Add offline-mode tests proving that inference and memory retrieval make no network requests.
