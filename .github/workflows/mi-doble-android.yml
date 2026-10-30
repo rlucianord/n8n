@@ -39,12 +39,24 @@ jobs:
         run: gradle --no-daemon :app:testDebugUnitTest
       - name: Assemble debug APK
         run: gradle --no-daemon :app:assembleDebug
-      - name: Verify debug APK
-        run: test -s app/build/outputs/apk/debug/app-debug.apk
-      - name: Upload debug APK
+      - name: Version debug APK
+        shell: bash
+        run: |
+          VERSION_NAME="$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -n 1)"
+          if [ -z "$VERSION_NAME" ]; then
+            echo "Could not read versionName from app/build.gradle.kts"
+            exit 1
+          fi
+          APK_NAME="MiDoble-${VERSION_NAME}-build-${GITHUB_RUN_NUMBER}.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "app/build/outputs/apk/debug/$APK_NAME"
+          echo "APK_NAME=$APK_NAME" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
+      - name: Verify versioned debug APK
+        run: test -s "app/build/outputs/apk/debug/$APK_NAME"
+      - name: Upload versioned debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: mi-doble-debug-apk
-          path: mi-doble/android/app/build/outputs/apk/debug/app-debug.apk
+          name: mi-doble-debug-v${{ env.VERSION_NAME }}-build-${{ github.run_number }}
+          path: mi-doble/android/app/build/outputs/apk/debug/${{ env.APK_NAME }}
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 14
