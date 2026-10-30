@@ -45,9 +45,11 @@ private const val GIB = 1024.0 * 1024.0 * 1024.0
 private data class ModelOption(val name: String, val description: String, val artifact: String?)
 
 private val modelOptions = listOf(
-    ModelOption("Phi-4", "Un modelo de Microsoft para razonamiento y tareas generales.", null),
+    ModelOption("Phi-4", "Modelo de Microsoft para razonamiento y tareas generales.", null),
     ModelOption("Qwen3", "Modelo multilingüe para tareas generales. Disponible para instalación.", "Qwen3-4B-Q4_K_M.gguf"),
-    ModelOption("Gemma 3", "Modelo compacto de Google.", null)
+    ModelOption("Gemma 3", "Modelo compacto de Google.", null),
+    ModelOption("Llama 3.2", "Modelo compacto de Meta para tareas generales.", null),
+    ModelOption("SmolLM3", "Modelo pequeño multilingüe de Hugging Face; compatibilidad del dispositivo pendiente de validación.", null)
 )
 
 class MainActivity : ComponentActivity() {
