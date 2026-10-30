@@ -7,6 +7,7 @@ import android.os.StatFs
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,6 +16,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -24,8 +28,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import java.io.File
 import java.util.Locale
 import java.util.concurrent.Executors
@@ -49,6 +55,7 @@ class MainActivity : ComponentActivity() {
     private val modelReady = mutableStateOf(false)
     private val busy = mutableStateOf(false)
     private val screen = mutableStateOf("home")
+    private val settingsMenuExpanded = mutableStateOf(false)
     private val selectedModel = mutableStateOf("Qwen3")
     private val voiceMode = mutableStateOf("Voz del dispositivo")
     private val customVoiceLabel = mutableStateOf("")
@@ -131,8 +138,12 @@ class MainActivity : ComponentActivity() {
                             name = profileName.value, role = profileRole.value, goals = profileGoals.value,
                             modelReady = modelReady.value, selectedModel = selectedModel.value,
                             modelStatus = modelStatus.value,
-                            onProfile = { screen.value = "profile" }, onModel = { screen.value = "model" },
-                            onAgency = { screen.value = "agency" }
+                            menuExpanded = settingsMenuExpanded.value,
+                            onMenu = { settingsMenuExpanded.value = true },
+                            onDismissMenu = { settingsMenuExpanded.value = false },
+                            onProfile = { settingsMenuExpanded.value = false; screen.value = "profile" },
+                            onModel = { settingsMenuExpanded.value = false; screen.value = "model" },
+                            onAgency = { settingsMenuExpanded.value = false; screen.value = "agency" }
                         )
                     }
                 }
@@ -243,27 +254,64 @@ private data class DeviceSnapshot(
 @Composable
 private fun DigitalSelfHome(
     name: String, role: String, goals: String, modelReady: Boolean, selectedModel: String,
-    modelStatus: String, onProfile: () -> Unit, onModel: () -> Unit, onAgency: () -> Unit
+    modelStatus: String, menuExpanded: Boolean, onMenu: () -> Unit, onDismissMenu: () -> Unit,
+    onProfile: () -> Unit, onModel: () -> Unit, onAgency: () -> Unit
 ) {
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Mi Doble", style = MaterialTheme.typography.headlineLarge)
-        Text("Tu identidad digital. Tu memoria. Tus preferencias. Bajo tu control.")
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box {
+                IconButton(onClick = onMenu) { Text("☰", style = MaterialTheme.typography.headlineMedium) }
+                DropdownMenu(expanded = menuExpanded, onDismissRequest = onDismissMenu) {
+                    DropdownMenuItem(text = { Text("Personalización") }, onClick = onProfile)
+                    DropdownMenuItem(text = { Text("Modelos") }, onClick = onModel)
+                    DropdownMenuItem(text = { Text("Voz y permisos") }, onClick = onAgency)
+                }
+            }
+            Column {
+                Text("Mi Doble", style = MaterialTheme.typography.headlineMedium)
+                Text("Tu asistente virtual", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("🤖", fontSize = 84.sp)
+                Text("ASISTENTE VIRTUAL", style = MaterialTheme.typography.labelMedium)
+                Text("Siempre identificado como IA", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(if (name.isBlank()) "Comencemos a configurar tu identidad" else "Hola, $name", style = MaterialTheme.typography.titleLarge)
+                Text(if (name.isBlank()) "Configura tu identidad digital" else "Hola, $name", style = MaterialTheme.typography.titleLarge)
                 Text(if (role.isBlank()) "Tu perfil personal todavía necesita configurarse." else role)
                 if (goals.isNotBlank()) Text("Enfoque actual: $goals")
                 Text("Modelo: $selectedModel · ${if (modelReady) "Activo" else "Pendiente"}")
                 Text(modelStatus, style = MaterialTheme.typography.bodySmall)
             }
         }
-        Button(onClick = onProfile, modifier = Modifier.fillMaxWidth()) { Text("Personalizar mi identidad digital") }
-        Button(onClick = onModel, modifier = Modifier.fillMaxWidth()) { Text("Elegir o cambiar modelo") }
-        Button(onClick = onAgency, modifier = Modifier.fillMaxWidth()) { Text("Configurar voz y permisos") }
+
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Llamadas telefónicas", style = MaterialTheme.typography.titleMedium)
+                Text("Estado: todavía no conectado")
+                Text("La respuesta automática a llamadas celulares requiere integrar telefonía, gestión de llamadas y acceso autorizado al audio. Esta versión aún no contesta llamadas.")
+                Text("Próximo paso: habilitar una vía de llamada compatible y probar la conversación de extremo a extremo.", style = MaterialTheme.typography.bodySmall)
+                Button(onClick = onAgency, modifier = Modifier.fillMaxWidth()) { Text("Revisar voz y permisos") }
+            }
+        }
+
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Centro de acciones", style = MaterialTheme.typography.titleMedium)
-                Text("Aquí podrás configurar correo, llamadas y reuniones cuando sus conectores autorizados estén instalados.")
+                Text("Tu asistente, bajo tu control", style = MaterialTheme.typography.titleMedium)
+                Text("Abre el menú de la esquina superior izquierda para cambiar modelos, personalizar tu identidad y configurar la voz.")
             }
         }
     }
