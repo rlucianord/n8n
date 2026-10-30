@@ -2,16 +2,12 @@ package com.midoble.app
 
 import android.app.ActivityManager
 import android.content.Context
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.os.StatFs
-import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,6 +24,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
@@ -35,7 +32,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import java.io.File
 import java.util.Locale
@@ -49,7 +45,8 @@ class MainActivity : ComponentActivity() {
     private val executor = Executors.newSingleThreadExecutor()
     private val nativeBackendInfo = mutableStateOf("Verificación pendiente")
     private val modelPath = mutableStateOf<String?>(null)
-    private val modelStatus = mutableStateOf("Selecciona un archivo GGUF para comenzar.")
+    private val modelStatus = mutableStateOf("Preparando el modelo oficial Qwen3-4B...")
+    private val downloadProgress = mutableStateOf(0f)
     private val isBusy = mutableStateOf(false)
     private val messages = mutableStateListOf<ChatMessage>()
     private val isModelLoaded = mutableStateOf(false)
@@ -74,7 +71,10 @@ class MainActivity : ComponentActivity() {
 
         val savedPath = getSharedPreferences("mi_doble_beta", MODE_PRIVATE)
             .getString("model_path", null)
-        if (savedPath != null && File(savedPath).exists()) modelPath.value = savedPath
+        if (savedPath != null && File(savedPath).exists()) {
+            modelPath.value = savedPath
+            modelStatus.value = "Modelo encontrado. Preparando carga automática..."
+        }
 
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
@@ -85,15 +85,17 @@ class MainActivity : ComponentActivity() {
                         modelStatus = modelStatus.value,
                         modelName = modelPath.value?.let { File(it).name },
                         isBusy = isBusy.value,
+                        downloadProgress = downloadProgress.value,
                         messages = messages.toList(),
-                        onImportModel = ::importModel,
-                        onLoadModel = ::loadModel,
+                        onDownloadModel = ::downloadAndLoadModel,
                         onSend = ::sendMessage,
                         onClearChat = { messages.clear() }
                     )
                 }
             }
         }
+
+        if (savedPath != null && File(savedPath).exists()) loadModel(savedPath)
 
         executor.execute {
             val info = try {
@@ -105,51 +107,58 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun importModel(uri: Uri) {
-        if (isBusy.value) return
-        isBusy.value = true
-        modelStatus.value = "Copiando modelo al almacenamiento privado..."
-        executor.execute {
-            try {
-                val name = queryDisplayName(uri).ifBlank { "modelo-importado.gguf" }
-                    .replace(Regex("[^A-Za-z0-9._-]"), "_")
-                if (!name.lowercase(Locale.ROOT).endsWith(".gguf")) {
-                    throw IllegalArgumentException("Selecciona un archivo con extensión .gguf.")
-                }
-                val directory = File(filesDir, "models").apply { mkdirs() }
-                val destination = File(directory, name)
-                contentResolver.openInputStream(uri).use { input ->
-                    requireNotNull(input) { "No se pudo abrir el archivo seleccionado." }
-                    destination.outputStream().use { output -> input.copyTo(output) }
-                }
-                modelPath.value = destination.absolutePath
-                getSharedPreferences("mi_doble_beta", MODE_PRIVATE).edit()
-                    .putString("model_path", destination.absolutePath).apply()
-                isModelLoaded.value = false
-                modelStatus.value = "Modelo copiado. Pulsa «Cargar modelo» para inicializar llama.cpp."
-            } catch (error: Exception) {
-                modelStatus.value = "Error al importar: ${error.message ?: error.javaClass.simpleName}"
-            } finally {
-                isBusy.value = false
-            }
-        }
-    }
-
-    private fun queryDisplayName(uri: Uri): String {
-        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                if (index >= 0) return cursor.getString(index) ?: ""
-            }
-        }
-        return uri.lastPathSegment?.substringAfterLast('/') ?: "modelo.gguf"
-    }
-
-    private fun loadModel() {
-        val path = modelPath.value ?: run {
-            modelStatus.value = "Primero selecciona un archivo GGUF."
+    private fun downloadAndLoadModel() {
+        if (isBusy.value || isModelLoaded.value) return
+        val cached = File(filesDir, "models/Qwen3-4B-Q4_K_M.gguf")
+        if (ModelDownloader.isValidModel(cached)) {
+            modelPath.value = cached.absolutePath
+            loadModel(cached.absolutePath)
             return
         }
+        isBusy.value = true
+        downloadProgress.value = 0f
+        modelStatus.value = "Descargando Qwen3-4B (aprox. 2.5 GB). Puedes dejar la aplicación abierta..."
+        executor.execute {
+            try {
+                val downloaded = ModelDownloader.download(
+                    context = this,
+                    destination = cached,
+                    onProgress = { progress, downloadedBytes, totalBytes ->
+                        runOnUiThread {
+                            downloadProgress.value = progress
+                            modelStatus.value = if (totalBytes > 0L) {
+                                "Descargando modelo: %.1f / %.1f GiB".format(
+                                    downloadedBytes / GIB, totalBytes / GIB
+                                )
+                            } else {
+                                "Descargando modelo: %.1f GiB".format(downloadedBytes / GIB)
+                            }
+                        }
+                    }
+                )
+                modelPath.value = downloaded.absolutePath
+                getSharedPreferences("mi_doble_beta", MODE_PRIVATE).edit()
+                    .putString("model_path", downloaded.absolutePath).apply()
+                runOnUiThread {
+                    downloadProgress.value = 1f
+                    modelStatus.value = "Descarga verificada. Cargando el modelo..."
+                }
+                val result = NativeLlamaBridge.loadModel(downloaded.absolutePath)
+                runOnUiThread {
+                    modelStatus.value = result
+                    isModelLoaded.value = result.startsWith("Modelo GGUF cargado correctamente")
+                    isBusy.value = false
+                }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    modelStatus.value = "No se pudo descargar o cargar el modelo: ${error.message ?: error.javaClass.simpleName}"
+                    isBusy.value = false
+                }
+            }
+        }
+    }
+
+    private fun loadModel(path: String) {
         if (isBusy.value) return
         isBusy.value = true
         isModelLoaded.value = false
@@ -235,16 +244,12 @@ private fun BetaHome(
     modelStatus: String,
     modelName: String?,
     isBusy: Boolean,
+    downloadProgress: Float,
     messages: List<ChatMessage>,
-    onImportModel: (Uri) -> Unit,
-    onLoadModel: () -> Unit,
+    onDownloadModel: () -> Unit,
     onSend: (String) -> Unit,
     onClearChat: () -> Unit
 ) {
-    val context = LocalContext.current
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) onImportModel(uri)
-    }
     val input = androidx.compose.runtime.remember { mutableStateOf("") }
 
     Column(
@@ -257,17 +262,17 @@ private fun BetaHome(
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Modelo local", style = MaterialTheme.typography.titleMedium)
-                Text(modelName ?: "Ningún modelo seleccionado")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { picker.launch(arrayOf("*/*")) }, enabled = !isBusy) {
-                        Text("Seleccionar GGUF")
-                    }
-                    Button(onClick = onLoadModel, enabled = !isBusy && modelName != null) {
-                        Text("Cargar modelo")
-                    }
+                Text(modelName ?: "Qwen3-4B · Q4_K_M · Modelo oficial")
+                if (isBusy && downloadProgress > 0f) {
+                    LinearProgressIndicator(progress = { downloadProgress }, modifier = Modifier.fillMaxWidth())
                 }
+                Button(
+                    onClick = onDownloadModel,
+                    enabled = !isBusy,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(if (isBusy) "Preparando modelo..." else if (modelName == null) "Descargar e instalar modelo" else "Volver a cargar modelo") }
                 Text(modelStatus, style = MaterialTheme.typography.bodySmall)
-                Text("El archivo se copia al almacenamiento privado. No se descarga ni se envía a servidores.", style = MaterialTheme.typography.bodySmall)
+                Text("La primera descarga requiere Internet y aproximadamente 2.5 GB. Después, el modelo funciona localmente y no se envían tus conversaciones a servidores.", style = MaterialTheme.typography.bodySmall)
             }
         }
 
