@@ -117,3 +117,7 @@ No action involving phone calls, meetings, messages, purchases, or disclosure of
 ## n8n integration
 
 See [n8n integration notes](./docs/N8N_INTEGRATION.md). n8n should orchestrate approved workflows; it must not receive the database key or become the personal memory store.
+
+## Android application
+
+The native Android project is in `android/`. Its initial milestone provides a Kotlin/Jetpack Compose device diagnostic screen and sets `minSdk` to 34 (Android 14). The agreed device baseline is at least 4 GB total RAM and 64 GB total internal storage. HONOR and Google Pixel devices are not restricted by model name; devices are assessed by their Android version and hardware. Passing this baseline does not guarantee that Qwen3-4B fits in memory. See `android/README.md` and `docs/ANDROID_LOCAL_RUNTIME.md`.
