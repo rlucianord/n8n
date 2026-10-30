@@ -15,7 +15,7 @@ The diagnostic screen reads Android version, total and available RAM, and total 
 
 ## Build
 
-Open this directory in Android Studio, allow Gradle sync, then run the app on an Android 14+ device or emulator. The project targets Android API 36 and Java 17. The build uses Android Gradle Plugin 8.13.2, Gradle 8.13, Kotlin 2.2.21, and the stable Compose BOM 2026.09.00.
+Open this directory in Android Studio, allow Gradle sync, then run the app on an Android 14+ device or emulator. The project targets Android API 36 and Java 17. The build uses Android Gradle Plugin 9.5.0, Gradle 9.6.0, Kotlin 2.4.21, and the stable Compose BOM 2026.09.00.
 
 The Gradle wrapper scripts are not committed in this first source-only bootstrap. A GitHub Actions workflow builds the app using a pinned Gradle version. Android Studio can also generate a wrapper for local development.
 
