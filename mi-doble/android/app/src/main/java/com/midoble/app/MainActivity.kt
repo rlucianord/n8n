@@ -214,7 +214,7 @@ class MainActivity : ComponentActivity() {
         blockedNumbers.value = blockedNumbers.value.filterNot { it == number }
         BlockedNumbersStore.write(this, blockedNumbers.value)
     }
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 410) refreshSimLines()
         if (requestCode == 412 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) requestScreeningRole()
