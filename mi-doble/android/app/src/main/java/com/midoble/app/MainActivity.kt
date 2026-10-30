@@ -22,6 +22,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import java.util.Locale
@@ -29,6 +30,8 @@ import java.util.Locale
 private const val GIB = 1024.0 * 1024.0 * 1024.0
 
 class MainActivity : ComponentActivity() {
+    private val nativeBackendInfo = mutableStateOf("Verificación pendiente")
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -54,10 +57,21 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    CompatibilityDashboard(snapshot)
+                    CompatibilityDashboard(snapshot, nativeBackendInfo.value)
                 }
             }
         }
+
+        Thread({
+            val status = try {
+                NativeLlamaBridge.backendInfo()
+            } catch (error: LinkageError) {
+                "Biblioteca nativa no disponible: ${error.javaClass.simpleName}"
+            } catch (error: Exception) {
+                "No se pudo iniciar el motor nativo: ${error.javaClass.simpleName}"
+            }
+            runOnUiThread { nativeBackendInfo.value = status }
+        }, "MiDoble-NativeCheck").start()
     }
 }
 
@@ -84,7 +98,7 @@ private data class DeviceSnapshot(
 }
 
 @Composable
-private fun CompatibilityDashboard(device: DeviceSnapshot) {
+private fun CompatibilityDashboard(device: DeviceSnapshot, nativeInfo: String) {
     val report = device.compatibility
     val baselineLabel = when {
         !report.androidSupported -> "Android no compatible"
@@ -111,6 +125,7 @@ private fun CompatibilityDashboard(device: DeviceSnapshot) {
                 formatBytes(device.availableRamBytes) + " disponible — " + status(report.ramSupported)
         )
         InfoCard("Arquitecturas compatibles", device.supportedAbis)
+        InfoCard("Motor llama.cpp", nativeInfo)
         InfoCard("Clasificación de memoria", if (device.isLowRamDevice) "Android identifica este equipo como dispositivo de RAM limitada" else "Android no lo identifica como dispositivo de RAM limitada")
         InfoCard(
             "Almacenamiento interno",
