@@ -31,6 +31,5 @@ jobs:
           pip install -r requirements-dev.txt
       - name: Run tests
         env:
-          MIDOBLE_DB_KEY: ${{ secrets.MIDOBLE_TEST_DB_KEY }}
           MIDOBLE_HOST: 127.0.0.1
         run: pytest -q
