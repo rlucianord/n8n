@@ -9,6 +9,8 @@ import android.os.Bundle
 import android.os.Environment
 import android.os.StatFs
 import androidx.activity.ComponentActivity
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -77,9 +79,41 @@ class MainActivity : ComponentActivity() {
     private val simPermissionGranted = mutableStateOf(false)
     private val blockedNumbers = mutableStateOf<List<String>>(emptyList())
     private val screeningRoleHeld = mutableStateOf(false)
+    private val includeModelsInBackup = mutableStateOf(true)
+    private val backupStatus = mutableStateOf("")
+    private lateinit var createBackupLauncher: ActivityResultLauncher<String>
+    private lateinit var restoreBackupLauncher: ActivityResultLauncher<Array<String>>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        createBackupLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+            if (uri != null) {
+                backupStatus.value = try { BackupManager.export(this, uri, includeModelsInBackup.value) }
+                catch (error: Exception) { "No se pudo crear el respaldo: ${error.message ?: error.javaClass.simpleName}" }
+            }
+        }
+        restoreBackupLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) {
+                backupStatus.value = try {
+                    val message = BackupManager.restore(this, uri)
+                    val restored = getSharedPreferences("mi_doble_profile", MODE_PRIVATE)
+                    profileName.value = restored.getString("name", "") ?: ""
+                    profileRole.value = restored.getString("role", "") ?: ""
+                    profileLanguages.value = restored.getString("languages", "Español, inglés") ?: "Español, inglés"
+                    profileGoals.value = restored.getString("goals", "") ?: ""
+                    profileStyle.value = restored.getString("style", "Directo, claro y práctico") ?: "Directo, claro y práctico"
+                    profileValues.value = restored.getString("values", "Privacidad, autonomía y continuidad") ?: "Privacidad, autonomía y continuidad"
+                    voiceMode.value = restored.getString("voice_mode", "Voz del dispositivo") ?: "Voz del dispositivo"
+                    customVoiceLabel.value = restored.getString("custom_voice_label", "") ?: ""
+                    voiceEnabledForCalls.value = restored.getBoolean("voice_use_calls", false)
+                    voiceEnabledForMeetings.value = restored.getBoolean("voice_use_meetings", false)
+                    selectedSimSlot.value = restored.getInt("preferred_sim_slot", -1)
+                    blockedNumbers.value = BlockedNumbersStore.read(this)
+                    selectModel(restored.getString("active_model", "Qwen3") ?: "Qwen3")
+                    message
+                } catch (error: Exception) { "No se pudo restaurar el respaldo: ${error.message ?: error.javaClass.simpleName}" }
+            }
+        }
         val prefs = getSharedPreferences("mi_doble_profile", MODE_PRIVATE)
         profileName.value = prefs.getString("name", "") ?: ""
         profileRole.value = prefs.getString("role", "") ?: ""
@@ -148,6 +182,14 @@ class MainActivity : ComponentActivity() {
                             onSelect = { slot -> selectedSimSlot.value = slot; getSharedPreferences("mi_doble_profile", MODE_PRIVATE).edit().putInt("preferred_sim_slot", slot).apply() },
                             onRefresh = ::refreshSimLines, onBack = { screen.value = "home" }
                         )
+                        "backup" -> BackupRestoreScreen(
+                            includeModels = includeModelsInBackup.value,
+                            onIncludeModels = { includeModelsInBackup.value = it },
+                            status = backupStatus.value,
+                            onCreateBackup = { createBackupLauncher.launch("MiDoble-respaldo.zip") },
+                            onRestoreBackup = { restoreBackupLauncher.launch(arrayOf("application/zip", "application/octet-stream")) },
+                            onBack = { screen.value = "home" }
+                        )
                         "agency" -> AgencySettingsScreen(
                             voiceMode = voiceMode.value, onVoiceMode = { voiceMode.value = it },
                             customVoiceLabel = customVoiceLabel.value,
@@ -167,7 +209,8 @@ class MainActivity : ComponentActivity() {
                             onModel = { settingsMenuExpanded.value = false; screen.value = "model" },
                             onAgency = { settingsMenuExpanded.value = false; screen.value = "agency" },
                             onPhone = { settingsMenuExpanded.value = false; screen.value = "phone" },
-                            onBlocked = { settingsMenuExpanded.value = false; screen.value = "blocked" }
+                            onBlocked = { settingsMenuExpanded.value = false; screen.value = "blocked" },
+                            onBackup = { settingsMenuExpanded.value = false; backupStatus.value = ""; screen.value = "backup" }
                         )
                     }
                 }
@@ -352,7 +395,7 @@ private data class DeviceSnapshot(
 private fun DigitalSelfHome(
     name: String, role: String, goals: String, modelReady: Boolean, selectedModel: String,
     modelStatus: String, menuExpanded: Boolean, onMenu: () -> Unit, onDismissMenu: () -> Unit,
-    onProfile: () -> Unit, onModel: () -> Unit, onAgency: () -> Unit, onPhone: () -> Unit, onBlocked: () -> Unit
+    onProfile: () -> Unit, onModel: () -> Unit, onAgency: () -> Unit, onPhone: () -> Unit, onBlocked: () -> Unit, onBackup: () -> Unit
 ) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
@@ -371,6 +414,7 @@ private fun DigitalSelfHome(
                     DropdownMenuItem(text = { Text("Voz y permisos") }, onClick = onAgency)
                     DropdownMenuItem(text = { Text("Llamadas y SIM") }, onClick = onPhone)
                     DropdownMenuItem(text = { Text("Números bloqueados") }, onClick = onBlocked)
+                    DropdownMenuItem(text = { Text("Respaldo y restauración") }, onClick = onBackup)
                 }
             }
             Column {
