@@ -177,19 +177,19 @@ class MainActivity : ComponentActivity() {
         }
         messages.add(ChatMessage("user", cleaned))
         isBusy.value = true
-        executor.execute {
-            val history = messages.takeLast(10)
-            val prompt = buildString {
-                append("<|im_start|>system\nEres Mi Doble, un asistente personal útil, claro y honesto. Responde en el idioma del usuario.\n<|im_end|>\n")
-                history.forEach { message ->
-                    append("<|im_start|>")
-                    append(if (message.role == "user") "user" else "assistant")
-                    append("\n")
-                    append(message.content)
-                    append("\n<|im_end|>\n")
-                }
-                append("<|im_start|>assistant\n")
+        val history = messages.takeLast(10)
+        val prompt = buildString {
+            append("<|im_start|>system\nEres Mi Doble, un asistente personal útil, claro y honesto. Responde en el idioma del usuario.\n<|im_end|>\n")
+            history.forEach { message ->
+                append("<|im_start|>")
+                append(if (message.role == "user") "user" else "assistant")
+                append("\n")
+                append(message.content)
+                append("\n<|im_end|>\n")
             }
+            append("<|im_start|>assistant\n")
+        }
+        executor.execute {
             val answer = try {
                 NativeLlamaBridge.generate(prompt, 256)
             } catch (error: Throwable) {
