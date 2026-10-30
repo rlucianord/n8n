@@ -18,3 +18,7 @@ android/.idea/
 android/captures/
 *.apk
 *.aab
+android/**/.cxx/
+android/**/.externalNativeBuild/
+android/**/CMakeFiles/
+android/**/CMakeCache.txt
