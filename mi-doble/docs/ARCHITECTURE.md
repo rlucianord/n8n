@@ -4,7 +4,7 @@
 
 - **n8n:** event orchestration and integrations.
 - **Mi Doble API:** local policy boundary and application service.
-- **Local model runtime (planned):** Transformers/PyTorch on PC; Android runtime to be benchmarked separately.
+- **Local model runtime:** provider interface with an optional Transformers/PyTorch adapter on PC. It loads only local model files, runs CPU-first, and has no hosted API fallback. Model choice and weights remain pending benchmark. Android runtime will be benchmarked separately.
 - **SQLCipher/SQLite:** encrypted local profile, conversation, memory, policy, and audit data.
 - **Speech and avatar (planned):** local speech-to-text/text-to-speech and a visual avatar; not part of this bootstrap.
 
