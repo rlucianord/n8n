@@ -45,3 +45,16 @@ The initial generation path uses a Qwen3-style prompt template, a 2048-token con
 The GitHub Actions workflow builds on `ubuntu-latest`, runs Android JVM unit tests, compiles llama.cpp and the JNI library, assembles the debug APK, verifies it, and uploads a versioned artifact.
 
 Never commit model weights, database files, user conversations, or encryption keys to this repository.
+
+## Persistent beta installation and model retention
+
+Android only permits an in-place update when the new APK is signed with the same signing certificate as the installed app. GitHub-hosted runners generate different debug keys unless a persistent signing key is supplied. Configure these repository Actions secrets:
+
+- `MIDOBLE_KEYSTORE_BASE64`: Base64-encoded private JKS/PKCS12 keystore.
+- `MIDOBLE_KEYSTORE_PASSWORD`
+- `MIDOBLE_KEY_ALIAS`
+- `MIDOBLE_KEY_PASSWORD`
+
+Keep the keystore private. Never commit it or place it in a build artifact. Once configured, subsequent beta APKs use the same signing identity. The first APK signed with the persistent key cannot update an already-installed APK signed by a different temporary key: uninstall the old beta once, install the persistent-key build, and future updates will preserve app data and the downloaded model.
+
+If secrets are absent, CI falls back to a temporary debug key and emits a warning; those builds are not suitable for in-place upgrades.
