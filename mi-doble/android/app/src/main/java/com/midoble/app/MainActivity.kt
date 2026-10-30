@@ -43,7 +43,9 @@ class MainActivity : ComponentActivity() {
             totalRamBytes = memory.totalMem,
             availableRamBytes = memory.availMem,
             dataPartitionBytes = storage.totalBytes,
-            availableDataPartitionBytes = storage.availableBytes
+            availableDataPartitionBytes = storage.availableBytes,
+            supportedAbis = Build.SUPPORTED_ABIS.joinToString(),
+            isLowRamDevice = manager.isLowRamDevice
         )
 
         setContent {
@@ -67,7 +69,9 @@ private data class DeviceSnapshot(
     val totalRamBytes: Long,
     val availableRamBytes: Long,
     val dataPartitionBytes: Long,
-    val availableDataPartitionBytes: Long
+    val availableDataPartitionBytes: Long,
+    val supportedAbis: String,
+    val isLowRamDevice: Boolean
 ) {
     // The advertised storage capacity cannot be inferred reliably from StatFs.
     // It remains unverified until confirmed from the device specifications.
@@ -106,6 +110,8 @@ private fun CompatibilityDashboard(device: DeviceSnapshot) {
             formatBytes(device.totalRamBytes) + " total; " +
                 formatBytes(device.availableRamBytes) + " disponible — " + status(report.ramSupported)
         )
+        InfoCard("Arquitecturas compatibles", device.supportedAbis)
+        InfoCard("Clasificación de memoria", if (device.isLowRamDevice) "Android identifica este equipo como dispositivo de RAM limitada" else "Android no lo identifica como dispositivo de RAM limitada")
         InfoCard(
             "Almacenamiento interno",
             formatBytes(device.dataPartitionBytes) + " en partición de datos; " +
