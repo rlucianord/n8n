@@ -6,7 +6,7 @@ from uuid import uuid4
 from app.database import connection
 from app.services.memory import log_action
 
-MODEL_NAMES = {"Phi-4", "Qwen3", "Llama 3.2", "Gemma 3"}
+MODEL_NAMES = {"Phi-4", "Qwen3", "Gemma 3", "Llama 3.2", "SmolLM3"}
 VOICE_MODES = {"system", "custom_user_voice", "alternative"}
 BOOLEAN_SETTINGS = {"voice_use_calls", "voice_use_meetings", "voice_disclose_ai"}
 
