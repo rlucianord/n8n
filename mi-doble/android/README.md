@@ -1,60 +1,33 @@
-# Mi Doble — Android application
+# Mi Doble — Android
 
-## Beta 0.2.0-beta2
+## Beta de selección de modelos
 
-The Android beta now installs its predefined model automatically from the official Qwen Hugging Face repository:
+La pantalla presenta cuatro modelos por nombre: Phi-4, Qwen3, Llama 3.2 y Gemma 3. El usuario puede cambiar la selección en cualquier momento. Los modelos descargados se guardan en el almacenamiento privado de la aplicación y no se eliminan al actualizar la app.
 
-- Model: `Qwen/Qwen3-4B-GGUF`
-- File: `Qwen3-4B-Q4_K_M.gguf`
-- Revision pinned to: `34778e26c8fa5e8bc0daa2389a9f958cffb1aedd`
-- License shown by the upstream model repository: Apache-2.0.
-- Download size: approximately 2.5 GB.
+En esta compilación, únicamente Qwen3 tiene un archivo GGUF con tamaño y SHA-256 validados en el descargador. Los otros tres aparecen en el catálogo y se pueden seleccionar, pero su instalación permanece bloqueada hasta que se fijen y verifiquen artefactos oficiales compatibles. No se debe mostrar su estado como instalado ni cambiar el modelo activo si no se ha cargado correctamente.
 
-The user no longer selects or imports a GGUF file. The first run presents one simple **Descargar e instalar modelo** action, shows download progress, validates the GGUF header and expected minimum size, saves the file in app-private storage, and loads it through the JNI llama.cpp runtime. Subsequent launches reuse and load the installed model automatically. A partial download is discarded and can be retried.
+## Voz
 
-The app requires Internet access only for the initial model download. Inference remains on-device; prompts and conversations are not sent to Hugging Face or any inference service. After installation, the app can run inference offline.
+El usuario puede configurar la voz del dispositivo, indicar que desea su voz personalizada o elegir otra voz, y activar su uso en llamadas/reuniones. Esta versión guarda esas preferencias localmente. La clonación de voz y el uso real en llamadas o reuniones requieren un motor de voz compatible y conectores de comunicación; no deben anunciarse como activos hasta instalarlos y probarlos. Al hablar con terceros, Mi Doble debe identificarse como asistente de IA.
 
-## Device baseline
+## Runtime local
 
-- Android 14 or newer (minSdk 34)
-- At least 4 GB total RAM baseline; this does not guarantee Qwen3-4B will run acceptably.
-- At least 3 GB free app data storage for download and installation.
-- CPU-first llama.cpp native runtime, pinned to upstream tag `b12003`
-- Supported APK ABIs: `arm64-v8a` and `x86_64`
+- Android 14 o posterior (minSdk 34).
+- llama.cpp nativo a través de JNI, CPU-first.
+- Modelo Qwen3 conservado en almacenamiento privado.
+- El modelo se descarga únicamente cuando el usuario pulsa instalar.
+- Se valida el tamaño y SHA-256 del archivo Qwen3 antes de cargarlo.
+- Tras instalarlo, la inferencia se realiza en el dispositivo.
 
-## Beta test flow
+## Limitaciones
 
-1. Install the debug APK on an Android 14+ device.
-2. Connect to Wi-Fi or another suitable Internet connection for the first model installation.
-3. Open Mi Doble and tap **Descargar e instalar modelo**.
-4. Wait for the download and automatic model load to finish.
-5. Send a short test message. Subsequent app launches reuse the downloaded model.
+- El selector de cuatro nombres está implementado, pero solo Qwen3 tiene descarga verificada en esta revisión.
+- No existe todavía descarga de Phi-4, Llama 3.2 ni Gemma 3.
+- El cambio entre modelos requiere un archivo instalado y validado; por ahora, cambiar a los otros tres solo guarda la selección y muestra que el instalador aún no está disponible.
+- Preferencias de voz se almacenan, pero el motor de voz y la clonación de voz no están integrados.
+- Llamadas, reuniones y correo aún necesitan conectores externos autorizados.
+- No declarar memoria SQLCipher integrada en Android hasta verificar interoperabilidad con el servicio local.
 
-The initial generation path uses a Qwen3-style prompt template, a 2048-token context, a maximum of 256 generated tokens, and greedy sampling. Model loading and generation run off the UI thread.
+## Build
 
-## Known beta limitations
-
-- Download currently runs while the app remains open; Android background-download service and pause/resume are not yet implemented.
-- No persistent chat history or encrypted SQLCipher storage yet.
-- No streaming token display; the response appears after generation completes.
-- No voice, external communications, n8n integration, or cloud inference.
-- The native model load and inference still require physical-device validation on representative Android 14+ hardware.
-
-## Build and tests
-
-The GitHub Actions workflow builds on `ubuntu-latest`, runs Android JVM unit tests, compiles llama.cpp and the JNI library, assembles the debug APK, verifies it, and uploads a versioned artifact.
-
-Never commit model weights, database files, user conversations, or encryption keys to this repository.
-
-## Persistent beta installation and model retention
-
-Android only permits an in-place update when the new APK is signed with the same signing certificate as the installed app. GitHub-hosted runners generate different debug keys unless a persistent signing key is supplied. Configure these repository Actions secrets:
-
-- `MIDOBLE_KEYSTORE_BASE64`: Base64-encoded private JKS/PKCS12 keystore.
-- `MIDOBLE_KEYSTORE_PASSWORD`
-- `MIDOBLE_KEY_ALIAS`
-- `MIDOBLE_KEY_PASSWORD`
-
-Keep the keystore private. Never commit it or place it in a build artifact. Once configured, subsequent beta APKs use the same signing identity. The first APK signed with the persistent key cannot update an already-installed APK signed by a different temporary key: uninstall the old beta once, install the persistent-key build, and future updates will preserve app data and the downloaded model.
-
-If secrets are absent, CI falls back to a temporary debug key and emits a warning; those builds are not suitable for in-place upgrades.
+El workflow `.github/workflows/mi-doble-android.yml` ejecuta pruebas JVM, compila el runtime nativo y ensambla el APK Android. Para distribuir builds actualizables debe mantenerse el mismo certificado de firma de beta.

@@ -9,16 +9,18 @@ from app.config import validate_config
 from app.database import connection, initialize_database
 from app.services import context as context_service
 from app.services import memory
+from app.services import agency
 
 validate_config()
 initialize_database()
+agency.initialize_agency()
 
 app = FastAPI(
     title="Mi Doble Local API",
-    version="0.2.0",
+    version="0.4.0",
     description=(
-        "Local-first companion service. Personal data is stored in an "
-        "SQLCipher-encrypted database. No hosted AI provider is configured."
+        "Local-first companion service with encrypted memory and user-controlled "
+        "agency policies. External communication connectors are enabled separately."
     ),
 )
 
@@ -53,6 +55,20 @@ class ContextRequest(StrictModel):
     memory_limit: int = Field(default=8, ge=0, le=30)
 
 
+class AgencySettingsUpdate(StrictModel):
+    values: dict[str, str | bool] = Field(min_length=1)
+
+
+class AgencyPolicyUpdate(StrictModel):
+    enabled: bool
+    requires_confirmation: bool = True
+
+
+class AgencyDecisionRequest(StrictModel):
+    action: str = Field(min_length=1, max_length=80)
+    user_confirmed: bool = False
+
+
 @app.get("/health", tags=["system"])
 def health():
     with connection() as conn:
@@ -63,6 +79,55 @@ def health():
         "status": "ok",
         "database": "encrypted",
         "cipher_version": cipher_row[0],
+        "agency": "configured",
+        "external_connectors": "not_connected",
+    }
+
+
+@app.get("/agency/settings", tags=["agency"])
+def get_agency_settings():
+    return agency.get_settings()
+
+
+@app.put("/agency/settings", tags=["agency"])
+def put_agency_settings(payload: AgencySettingsUpdate):
+    try:
+        return agency.update_settings(payload.values)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/agency/policies", tags=["agency"])
+def get_agency_policies():
+    return agency.get_policies()
+
+
+@app.put("/agency/policies/{action:path}", tags=["agency"])
+def put_agency_policy(action: str, payload: AgencyPolicyUpdate):
+    try:
+        return agency.update_policy(
+            action, payload.enabled, payload.requires_confirmation
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/agency/decisions/evaluate", tags=["agency"])
+def evaluate_agency_decision(payload: AgencyDecisionRequest):
+    return agency.evaluate_action(payload.action, payload.user_confirmed)
+
+
+@app.get("/agency/model-catalog", tags=["agency"])
+def get_model_catalog():
+    return {
+        "active_model": agency.get_settings().get("active_model", "Qwen3"),
+        "models": [
+            {"name": "Phi-4", "available": False, "status": "catalog_only"},
+            {"name": "Qwen3", "available": True, "status": "current_android_candidate"},
+            {"name": "Llama 3.2", "available": False, "status": "catalog_only"},
+            {"name": "Gemma 3", "available": False, "status": "catalog_only"},
+        ],
+        "note": "Catalog entries do not imply that model files or Android loaders are installed.",
     }
 
 
