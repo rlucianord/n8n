@@ -19,7 +19,7 @@ A CPU-first llama.cpp native library is wired through Android NDK, CMake, and JN
 
 ## Build
 
-Open this directory in Android Studio, allow Gradle sync, then run the app on an Android 14+ device or emulator. The project targets Android API 36 and Java 17. The build uses Android Gradle Plugin 9.5.0, Gradle 9.6.0, Kotlin 2.4.21, and the stable Compose BOM 2026.09.00.
+Open this directory in Android Studio, allow Gradle sync, then run the app on an Android 14+ device or emulator. The project targets Android API 36 and Java 17. The build uses Android Gradle Plugin 9.5.0, Gradle 9.6.0, Kotlin 2.4.21, and Compose BOM 2026.06.01 (Compose 1.11 line, compatible with compileSdk 36).
 
 The Gradle wrapper scripts are not committed in this source-only bootstrap. A GitHub Actions workflow builds the app and native library using pinned Gradle, NDK, and CMake versions. Android Studio can also generate a wrapper for local development.
 
