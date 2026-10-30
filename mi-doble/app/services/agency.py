@@ -6,6 +6,10 @@ from uuid import uuid4
 from app.database import connection
 from app.services.memory import log_action
 
+MODEL_NAMES = {"Phi-4", "Qwen3", "Llama 3.2", "Gemma 3"}
+VOICE_MODES = {"system", "custom_user_voice", "alternative"}
+BOOLEAN_SETTINGS = {"voice_use_calls", "voice_use_meetings", "voice_disclose_ai"}
+
 DEFAULT_POLICIES = {
     "phone.answer": ("Atender llamadas permitidas", False, True),
     "phone.reject": ("Rechazar llamadas según reglas", False, True),
@@ -51,11 +55,15 @@ def initialize_agency() -> None:
                 (key, value),
             )
         for action, (description, enabled, confirmation) in DEFAULT_POLICIES.items():
-            conn.execute(
-                """INSERT OR IGNORE INTO policies(id, action, enabled, requires_confirmation, description)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (str(uuid4()), action, int(enabled), int(confirmation), description),
-            )
+            exists = conn.execute(
+                "SELECT 1 FROM policies WHERE action=? LIMIT 1", (action,)
+            ).fetchone()
+            if not exists:
+                conn.execute(
+                    """INSERT INTO policies(id, action, enabled, requires_confirmation, description)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (str(uuid4()), action, int(enabled), int(confirmation), description),
+                )
         conn.commit()
 
 
@@ -80,6 +88,13 @@ def update_settings(values: dict[str, Any]) -> dict[str, str]:
             raise ValueError(f"El valor de {key} no puede estar vacío.")
     if normalized.get("voice_disclose_ai", "true") != "true":
         raise ValueError("La identificación del asistente de IA no se puede desactivar.")
+    if "active_model" in normalized and normalized["active_model"] not in MODEL_NAMES:
+        raise ValueError("El modelo seleccionado no pertenece al catálogo.")
+    if "voice_mode" in normalized and normalized["voice_mode"] not in VOICE_MODES:
+        raise ValueError("La opción de voz seleccionada no es válida.")
+    for key in BOOLEAN_SETTINGS.intersection(normalized):
+        if normalized[key] not in {"true", "false"}:
+            raise ValueError(f"{key} debe ser verdadero o falso.")
     with connection() as conn:
         for key, value in normalized.items():
             conn.execute(
