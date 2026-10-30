@@ -11,6 +11,9 @@ on:
       - ".github/workflows/mi-doble-android.yml"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   assemble-debug:
     runs-on: ubuntu-latest
@@ -71,10 +74,16 @@ jobs:
           echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
       - name: Verify versioned debug APK
         run: test -s "app/build/outputs/apk/debug/$APK_NAME"
-      - name: Upload versioned debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: mi-doble-debug-v${{ env.VERSION_NAME }}-build-${{ github.run_number }}
-          path: mi-doble/android/app/build/outputs/apk/debug/${{ env.APK_NAME }}
-          if-no-files-found: error
-          retention-days: 14
+      - name: Publish direct APK download
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          TAG="mi-doble-v${VERSION_NAME}-build-${GITHUB_RUN_NUMBER}"
+          APK_PATH="app/build/outputs/apk/debug/${APK_NAME}"
+          gh release create "$TAG" "$APK_PATH" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "Mi Doble ${VERSION_NAME} (Build ${GITHUB_RUN_NUMBER})" \
+            --notes "Instalador Android APK directo. No requiere descomprimir.\n\nCommit: ${GITHUB_SHA}" \
+            --prerelease
