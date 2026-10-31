@@ -84,7 +84,7 @@ internal object NativeDeviceAiProvider {
             candidateCount = 1
             maxOutputTokens = 512
         }
-        model.generateContent(request).text.orEmpty().ifBlank {
+        model.generateContent(request).candidates.firstOrNull()?.text.orEmpty().ifBlank {
             "El motor nativo no devolvió texto."
         }
     }
