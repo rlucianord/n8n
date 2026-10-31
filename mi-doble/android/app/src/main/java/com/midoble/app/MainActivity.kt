@@ -98,6 +98,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         incomingCallNumber.value = intent.getStringExtra("incoming_call_number")?.takeIf { it.isNotBlank() }
+        if (incomingCallNumber.value != null && android.os.Build.VERSION.SDK_INT >= 27) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        }
         createBackupLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
             if (uri != null) {
                 backupStatus.value = try { BackupManager.export(this, uri, includeModelsInBackup.value) }
@@ -381,8 +385,12 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        intent.getStringExtra("incoming_call_number")?.takeIf { it.isNotBlank() }?.let {
-            incomingCallNumber.value = it
+        intent.getStringExtra("incoming_call_number")?.let {
+            incomingCallNumber.value = it.ifBlank { "Número no disponible" }
+            if (android.os.Build.VERSION.SDK_INT >= 27) {
+                setShowWhenLocked(true)
+                setTurnScreenOn(true)
+            }
         }
     }
 
