@@ -38,48 +38,7 @@ class BlockedCallScreeningService : CallScreeningService() {
             return
         }
 
-        if (!blocked) notifyIncomingCall(incomingNumber)
+        if (!blocked) IncomingCallNotifier.show(this, incomingNumber)
     }
 
-    private fun notifyIncomingCall(number: String) {
-        try {
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            val channelId = "incoming_calls"
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                manager.createNotificationChannel(
-                    NotificationChannel(channelId, "Llamadas entrantes", NotificationManager.IMPORTANCE_HIGH)
-                        .apply { description = "Avisos de llamadas para Mi Doble" }
-                )
-            }
-            val openApp = packageManager.getLaunchIntentForPackage(packageName) ?: return
-            openApp.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            openApp.putExtra("incoming_call_number", number)
-            val pending = PendingIntent.getActivity(
-                this, 7101, openApp,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            val caller = number.takeIf { it.isNotBlank() } ?: "Número no disponible"
-            val notification = NotificationCompat.Builder(this, channelId)
-                .setSmallIcon(R.drawable.ic_launcher_foreground)
-                .setContentTitle("Mi Doble detectó una llamada")
-                .setContentText(caller)
-                .setStyle(NotificationCompat.BigTextStyle().bigText("$caller está llamando. Toca aquí para abrir Mi Doble."))
-                .setCategory(NotificationCompat.CATEGORY_CALL)
-                .setPriority(NotificationCompat.PRIORITY_MAX)
-                .setAutoCancel(true)
-                .setOnlyAlertOnce(true)
-                .setContentIntent(pending)
-                .build()
-            manager.notify(7101, notification)
-            getSharedPreferences("mi_doble_profile", Context.MODE_PRIVATE).edit()
-                .putLong("last_incoming_call_wakeup", System.currentTimeMillis())
-                .putString("last_incoming_call_number", number)
-                .putString("last_incoming_call_source", "CALL_SCREENING_SERVICE")
-                .apply()
-        } catch (_: SecurityException) {
-            // Notification permission may be unavailable; call screening has already completed.
-        } catch (_: Exception) {
-            // Notification failures must not affect the phone call.
-        }
-    }
 }
