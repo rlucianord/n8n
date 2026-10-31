@@ -40,7 +40,10 @@ class MiDobleInCallService : InCallService() {
     }
 
     override fun onCallRemoved(call: Call) {
-        if (currentCall === call) currentCall = null
+        if (currentCall === call) {
+            currentCall = null
+            IncomingCallNotifier.dismiss(this)
+        }
         super.onCallRemoved(call)
     }
 
