@@ -350,15 +350,12 @@ class MainActivity : ComponentActivity() {
             val prompt = "Estás atendiendo una llamada telefónica como asistente de IA, no como humano. " +
                 "Responde oralmente en español, de forma breve, clara y natural, en una o dos frases. " +
                 "No inventes datos ni comprometas al usuario. Si no sabes, ofrece tomar el mensaje. " +
-                "Lo que dijo el interlocutor: " + transcript + "
-Respuesta de Mi Doble:"
+                "Lo que dijo el interlocutor: " + transcript + "\nRespuesta de Mi Doble:"
             val response = try {
                 if (model == "Gemini Nano") {
                     NativeDeviceAiProvider.generate(prompt, system)
                 } else {
-                    NativeLlamaBridge.generate(system + "
-
-" + prompt, 192)
+                    NativeLlamaBridge.generate(system + "\n\n" + prompt, 192)
                 }
             } catch (_: Throwable) {
                 "No pude procesar ese mensaje. Por favor, espere un momento."
