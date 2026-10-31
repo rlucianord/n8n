@@ -34,7 +34,7 @@ jobs:
           packages: platform-tools
       - name: Install Android SDK platform
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358" "cmake;3.31.6"
-      - name: Configure persistent beta signing key
+      - name: Configure and validate permanent beta signing key
         shell: bash
         env:
           KEYSTORE_BASE64: ${{ secrets.MIDOBLE_KEYSTORE_BASE64 }}
@@ -42,16 +42,19 @@ jobs:
           KEY_ALIAS: ${{ secrets.MIDOBLE_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.MIDOBLE_KEY_PASSWORD }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
-            echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/midoble-beta.jks"
-            echo "MIDOBLE_KEYSTORE_PATH=$RUNNER_TEMP/midoble-beta.jks" >> "$GITHUB_ENV"
-            echo "MIDOBLE_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
-            echo "MIDOBLE_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
-            echo "MIDOBLE_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
-            echo "Stable beta signing enabled."
-          else
-            echo "::warning::Stable signing secrets are not configured. This APK will use a temporary debug key and will not update an installation signed by another runner."
+          set -euo pipefail
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "::error::Permanent signing secrets are missing. Refusing to build or publish an APK with a temporary key."
+            exit 1
           fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/midoble-beta.jks"
+          test -s "$RUNNER_TEMP/midoble-beta.jks"
+          keytool -list -keystore "$RUNNER_TEMP/midoble-beta.jks" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          echo "MIDOBLE_KEYSTORE_PATH=$RUNNER_TEMP/midoble-beta.jks" >> "$GITHUB_ENV"
+          echo "MIDOBLE_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "MIDOBLE_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "MIDOBLE_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+          echo "Permanent signing keystore and alias validated."
       - name: Set up Gradle 9.6.0
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -60,9 +63,24 @@ jobs:
         run: gradle --no-daemon :app:testDebugUnitTest
       - name: Assemble debug APK
         run: gradle --no-daemon :app:assembleDebug
+      - name: Verify APK signature fingerprint
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
+          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          "$APKSIGNER" verify --verbose --print-certs "$APK_PATH" | tee "$RUNNER_TEMP/midoble-apk-certificate.txt"
+          ACTUAL="$(sed -n 's/.*certificate SHA-256 digest: //p' "$RUNNER_TEMP/midoble-apk-certificate.txt" | head -n 1 | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+          EXPECTED="6283498ba310f73633d40bf13d94a8b6fcf058f0b4a91513a7fec1bebfdb5a6d"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::APK certificate fingerprint does not match the permanent Mi Doble signing key. Publication blocked."
+            exit 1
+          fi
+          echo "APK signature matches the permanent Mi Doble certificate."
       - name: Version debug APK
         shell: bash
         run: |
+          set -euo pipefail
           VERSION_NAME="$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -n 1)"
           if [ -z "$VERSION_NAME" ]; then
             echo "Could not read versionName from app/build.gradle.kts"
@@ -80,10 +98,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
+          set -euo pipefail
           TAG="mi-doble-v${VERSION_NAME}-build-${GITHUB_RUN_NUMBER}"
           APK_PATH="app/build/outputs/apk/debug/${APK_NAME}"
           gh release create "$TAG" "$APK_PATH" \
             --repo "${GITHUB_REPOSITORY}" \
             --title "Mi Doble ${VERSION_NAME} (Build ${GITHUB_RUN_NUMBER})" \
-            --notes "Instalador Android APK directo. No requiere descomprimir.\n\nCommit: ${GITHUB_SHA}" \
+            --notes "APK Android firmada con la clave permanente de Mi Doble.\n\nCommit: ${GITHUB_SHA}" \
             --prerelease
