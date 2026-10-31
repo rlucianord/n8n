@@ -130,6 +130,9 @@ class MainActivity : ComponentActivity() {
         blockedNumbers.value = BlockedNumbersStore.read(this)
         refreshScreeningRole()
         refreshSimLines()
+        if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 414)
+        }
 
         val manager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
         val memory = ActivityManager.MemoryInfo().also(manager::getMemoryInfo)
@@ -236,10 +239,6 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestScreeningRole() {
-        if (checkSelfPermission(Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(Manifest.permission.READ_CONTACTS), 412)
-            return
-        }
         val manager = getSystemService(RoleManager::class.java) ?: return
         if (manager.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)) {
             startActivityForResult(manager.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING), 413)
@@ -260,7 +259,6 @@ class MainActivity : ComponentActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 410) refreshSimLines()
-        if (requestCode == 412 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) requestScreeningRole()
         if (requestCode == 413) refreshScreeningRole()
     }
     private fun saveProfile() {
