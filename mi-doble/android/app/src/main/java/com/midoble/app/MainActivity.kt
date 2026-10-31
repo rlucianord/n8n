@@ -3,6 +3,7 @@ package com.midoble.app
 import android.Manifest
 import android.app.role.RoleManager
 import android.app.ActivityManager
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.telephony.SubscriptionManager
 import android.widget.Toast
