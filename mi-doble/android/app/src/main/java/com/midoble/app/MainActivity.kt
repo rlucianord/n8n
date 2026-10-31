@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -30,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -79,6 +81,7 @@ class MainActivity : ComponentActivity() {
     private val simPermissionGranted = mutableStateOf(false)
     private val blockedNumbers = mutableStateOf<List<String>>(emptyList())
     private val screeningRoleHeld = mutableStateOf(false)
+    private val incomingCallNumber = mutableStateOf<String?>(null)
     private val includeModelsInBackup = mutableStateOf(true)
     private val backupStatus = mutableStateOf("")
     private lateinit var createBackupLauncher: ActivityResultLauncher<String>
@@ -86,6 +89,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        incomingCallNumber.value = intent.getStringExtra("incoming_call_number")?.takeIf { it.isNotBlank() }
         createBackupLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
             if (uri != null) {
                 backupStatus.value = try { BackupManager.export(this, uri, includeModelsInBackup.value) }
@@ -163,6 +167,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    Box(Modifier.fillMaxSize()) {
                     when (screen.value) {
                         "profile" -> PersonalizationScreen(
                             name = profileName.value, onName = { profileName.value = it },
@@ -218,6 +223,25 @@ class MainActivity : ComponentActivity() {
                             onBlocked = { settingsMenuExpanded.value = false; screen.value = "blocked" },
                             onBackup = { settingsMenuExpanded.value = false; backupStatus.value = ""; screen.value = "backup" }
                         )
+                    }
+                    incomingCallNumber.value?.let { caller ->
+                        AlertDialog(
+                            onDismissRequest = { incomingCallNumber.value = null },
+                            title = { Text("Llamada detectada por Mi Doble") },
+                            text = {
+                                Text(
+                                    "${caller.ifBlank { "Número no disponible" }} está llamando. " +
+                                        "Mi Doble ha recibido el aviso y puede abrir esta aplicación. " +
+                                        "Esta versión todavía no puede contestar ni escuchar llamadas celulares."
+                                )
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { incomingCallNumber.value = null }) {
+                                    Text("Entendido")
+                                }
+                            }
+                        )
+                    }
                     }
                 }
             }
