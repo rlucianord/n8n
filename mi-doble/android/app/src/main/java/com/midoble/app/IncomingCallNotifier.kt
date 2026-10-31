@@ -17,6 +17,13 @@ object IncomingCallNotifier {
     private const val CHANNEL_ID = "incoming_calls"
     private const val NOTIFICATION_ID = 7101
 
+    fun dismiss(context: Context) {
+        try {
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.cancel(NOTIFICATION_ID)
+        } catch (_: Exception) { }
+    }
+
     fun show(context: Context, number: String?) {
         try {
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
