@@ -17,8 +17,8 @@ android {
         applicationId = "com.midoble.app"
         minSdk = 34
         targetSdk = 36
-        versionCode = 12
-        versionName = "0.3.0-beta9"
+        versionCode = 13
+        versionName = "0.3.0-beta10"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
@@ -87,6 +87,7 @@ dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2026.06.01")
     implementation(composeBom)
     implementation("androidx.activity:activity-compose:1.13.0")
+    implementation("com.google.mlkit:genai-prompt:1.0.0-beta4")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
