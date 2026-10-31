@@ -28,59 +28,7 @@ class IncomingCallStateReceiver : BroadcastReceiver() {
             .any { PhoneNumberUtils.compare(context, number, it) }
         if (blocked) return
 
-        showIncomingCallNotification(context, number)
+        IncomingCallNotifier.show(context, number)
     }
 
-    private fun showIncomingCallNotification(context: Context, number: String) {
-        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val channelId = "incoming_calls"
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            manager.createNotificationChannel(
-                NotificationChannel(
-                    channelId,
-                    "Llamadas entrantes",
-                    NotificationManager.IMPORTANCE_HIGH
-                ).apply { description = "Avisos de llamadas para Mi Doble" }
-            )
-        }
-
-        val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return
-        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        launchIntent.putExtra("incoming_call_number", number)
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            7101,
-            launchIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val caller = number.takeIf { it.isNotBlank() } ?: "Número no disponible"
-        val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("Mi Doble detectó una llamada")
-            .setContentText(caller)
-            .setStyle(
-                NotificationCompat.BigTextStyle().bigText(
-                    "$caller está llamando. Toca aquí para abrir Mi Doble."
-                )
-            )
-            .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setAutoCancel(true)
-            .setOnlyAlertOnce(true)
-            .setContentIntent(pendingIntent)
-            .build()
-
-        try {
-            manager.notify(7101, notification)
-            context.getSharedPreferences("mi_doble_profile", Context.MODE_PRIVATE)
-                .edit()
-                .putLong("last_incoming_call_wakeup", System.currentTimeMillis())
-                .putString("last_incoming_call_number", number)
-                .putString("last_incoming_call_source", "PHONE_STATE_RECEIVER")
-                .apply()
-        } catch (_: SecurityException) {
-            // Android 13+ may deny notifications until the user grants permission.
-        }
-    }
 }
