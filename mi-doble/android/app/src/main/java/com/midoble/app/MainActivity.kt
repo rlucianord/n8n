@@ -94,6 +94,7 @@ class MainActivity : ComponentActivity() {
     private val backupStatus = mutableStateOf("")
     private lateinit var createBackupLauncher: ActivityResultLauncher<String>
     private lateinit var restoreBackupLauncher: ActivityResultLauncher<Array<String>>
+    private lateinit var dialerRoleLauncher: ActivityResultLauncher<Intent>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -106,6 +107,14 @@ class MainActivity : ComponentActivity() {
             if (uri != null) {
                 backupStatus.value = try { BackupManager.export(this, uri, includeModelsInBackup.value) }
                 catch (error: Exception) { "No se pudo crear el respaldo: ${error.message ?: error.javaClass.simpleName}" }
+            }
+        }
+        dialerRoleLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            refreshDialerRole()
+            if (dialerRoleHeld.value) {
+                Toast.makeText(this, "Mi Doble ya es la aplicación telefónica predeterminada.", Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(this, "No se concedió el rol telefónico. Puedes mantener tu aplicación actual y volver a intentarlo desde Ajustes.", Toast.LENGTH_LONG).show()
             }
         }
         restoreBackupLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -401,10 +410,28 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestDialerRole() {
-        val manager = getSystemService(RoleManager::class.java) ?: return
-        if (manager.isRoleAvailable(RoleManager.ROLE_DIALER) &&
-            !manager.isRoleHeld(RoleManager.ROLE_DIALER)) {
-            startActivityForResult(manager.createRequestRoleIntent(RoleManager.ROLE_DIALER), 415)
+        if (android.os.Build.VERSION.SDK_INT < 29) {
+            Toast.makeText(this, "La selección del teléfono predeterminado mediante Android requiere Android 10 o posterior.", Toast.LENGTH_LONG).show()
+            return
+        }
+        val manager = getSystemService(RoleManager::class.java)
+        if (manager == null) {
+            Toast.makeText(this, "Android no ofrece el administrador de aplicaciones predeterminadas en este dispositivo.", Toast.LENGTH_LONG).show()
+            return
+        }
+        if (!manager.isRoleAvailable(RoleManager.ROLE_DIALER)) {
+            Toast.makeText(this, "Android no permite solicitar el rol de teléfono predeterminado en este dispositivo.", Toast.LENGTH_LONG).show()
+            return
+        }
+        if (manager.isRoleHeld(RoleManager.ROLE_DIALER)) {
+            refreshDialerRole()
+            Toast.makeText(this, "Mi Doble ya es la aplicación telefónica predeterminada.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            dialerRoleLauncher.launch(manager.createRequestRoleIntent(RoleManager.ROLE_DIALER))
+        } catch (error: Exception) {
+            Toast.makeText(this, "No se pudo abrir la selección de teléfono predeterminado: ${error.message ?: error.javaClass.simpleName}", Toast.LENGTH_LONG).show()
         }
     }
 
