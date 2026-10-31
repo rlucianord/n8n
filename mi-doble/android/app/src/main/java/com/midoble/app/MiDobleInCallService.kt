@@ -34,13 +34,9 @@ class MiDobleInCallService : InCallService() {
         super.onCallAdded(call)
         currentCall = call
         val number = call.details.handle?.schemeSpecificPart.orEmpty()
-        val launch = packageManager.getLaunchIntentForPackage(packageName)
-        if (launch != null) {
-            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            launch.putExtra("incoming_call_number", number)
-            launch.putExtra("managed_by_incall_service", true)
-            startActivity(launch)
-        }
+        // Android restricts direct activity launches from background services.
+        // A high-priority full-screen call notification is the supported wake-up path.
+        IncomingCallNotifier.show(this, number)
     }
 
     override fun onCallRemoved(call: Call) {
