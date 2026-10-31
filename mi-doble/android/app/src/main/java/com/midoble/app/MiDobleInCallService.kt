@@ -31,23 +31,29 @@ class MiDobleInCallService : InCallService() {
     companion object {
         @Volatile private var currentCall: Call? = null
 
-        fun answerCurrentCall(): Boolean = try {
+        fun answerCurrentCall(): Boolean {
             val call = currentCall ?: return false
-            call.answer(VideoProfile.STATE_AUDIO_ONLY)
-            true
-        } catch (_: Exception) { false }
+            return try {
+                call.answer(VideoProfile.STATE_AUDIO_ONLY)
+                true
+            } catch (_: Exception) { false }
+        }
 
-        fun rejectCurrentCall(): Boolean = try {
+        fun rejectCurrentCall(): Boolean {
             val call = currentCall ?: return false
-            call.reject(false, null)
-            true
-        } catch (_: Exception) { false }
+            return try {
+                call.reject(false, null)
+                true
+            } catch (_: Exception) { false }
+        }
 
-        fun disconnectCurrentCall(): Boolean = try {
+        fun disconnectCurrentCall(): Boolean {
             val call = currentCall ?: return false
-            call.disconnect()
-            true
-        } catch (_: Exception) { false }
+            return try {
+                call.disconnect()
+                true
+            } catch (_: Exception) { false }
+        }
 
         fun hasActiveCall(): Boolean = currentCall != null
     }
