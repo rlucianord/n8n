@@ -89,6 +89,7 @@ class MainActivity : ComponentActivity() {
     private val screeningRoleHeld = mutableStateOf(false)
     private val dialerRoleHeld = mutableStateOf(false)
     private val incomingCallNumber = mutableStateOf<String?>(null)
+    private var callAudioAssistant: CallAudioAssistant? = null
     private val includeModelsInBackup = mutableStateOf(true)
     private val backupStatus = mutableStateOf("")
     private lateinit var createBackupLauncher: ActivityResultLauncher<String>
@@ -259,8 +260,8 @@ class MainActivity : ComponentActivity() {
                             text = {
                                 Text(
                                     "${caller.ifBlank { "Número no disponible" }} está llamando. " +
-                                        "Mi Doble ha recibido el aviso y puede abrir esta aplicación. " +
-                                        "Esta versión todavía no puede contestar ni escuchar llamadas celulares."
+                                        "Puedes atenderla tú o autorizar a Mi Doble para contestar usando el altavoz, reconocimiento de voz sin conexión y la voz local del teléfono. " +
+                                        "Android puede limitar el acceso al micrófono durante una llamada SIM."
                                 )
                             },
                             dismissButton = {
@@ -274,7 +275,7 @@ class MainActivity : ComponentActivity() {
                             },
                             confirmButton = {
                                 TextButton(onClick = {
-                                    Toast.makeText(this@MainActivity, "La gestión telefónica está integrada, pero el audio bidireccional del asistente aún no está habilitado. Atiende tú la llamada por ahora.", Toast.LENGTH_LONG).show()
+                                    answerAsAssistant()
                                 }) {
                                     Text("Que atienda Mi Doble")
                                 }
@@ -283,6 +284,87 @@ class MainActivity : ComponentActivity() {
                     }
                     }
                 }
+            }
+        }
+    }
+
+    private fun answerAsAssistant() {
+        if (!voiceEnabledForCalls.value) {
+            Toast.makeText(this, "Primero activa «Usar voz en llamadas» en Voz y permisos. La elección de este botón autoriza esta llamada concreta.", Toast.LENGTH_LONG).show()
+            return
+        }
+        if (!dialerRoleHeld.value) {
+            Toast.makeText(this, "Android debe establecer Mi Doble como aplicación telefónica para gestionar la llamada.", Toast.LENGTH_LONG).show()
+            requestDialerRole()
+            return
+        }
+        if (!modelReady.value) {
+            Toast.makeText(this, "El modelo local no está cargado. No contestaré en modo asistente hasta que esté listo.", Toast.LENGTH_LONG).show()
+            screen.value = "model"
+            return
+        }
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 416)
+            return
+        }
+        if (!CallAudioAssistant.isOfflineRecognitionAvailable(this)) {
+            Toast.makeText(this, "Este Android no ofrece reconocimiento de voz sin conexión. No contestaré como asistente porque no podría escuchar de forma privada al interlocutor.", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        callAudioAssistant?.stop()
+        val assistant = CallAudioAssistant(
+            context = this,
+            onTranscript = ::handleCallTranscript,
+            onStatus = { message ->
+                runOnUiThread { Toast.makeText(this, message, Toast.LENGTH_LONG).show() }
+            }
+        )
+        callAudioAssistant = assistant
+        assistant.prepare { ready, error ->
+            if (!ready) {
+                Toast.makeText(this, error, Toast.LENGTH_LONG).show()
+                assistant.stop()
+                if (callAudioAssistant === assistant) callAudioAssistant = null
+                return@prepare
+            }
+            if (!MiDobleInCallService.answerCurrentCall()) {
+                Toast.makeText(this, "Android no permitió contestar. La llamada sigue disponible para atenderla manualmente.", Toast.LENGTH_LONG).show()
+                assistant.stop()
+                if (callAudioAssistant === assistant) callAudioAssistant = null
+                return@prepare
+            }
+            incomingCallNumber.value = null
+            if (!MiDobleInCallService.routeToSpeaker()) {
+                Toast.makeText(this, "No pude activar el altavoz de la llamada. Puedes cambiar la ruta desde Android.", Toast.LENGTH_LONG).show()
+            }
+            assistant.startConversation()
+            Toast.makeText(this, "Mi Doble contestó. Está intentando escuchar mediante el micrófono local y responder por el altavoz.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun handleCallTranscript(transcript: String) {
+        val model = selectedModel.value
+        val system = buildNativeSystemInstruction()
+        executor.execute {
+            val prompt = "Estás atendiendo una llamada telefónica como asistente de IA, no como humano. " +
+                "Responde oralmente en español, de forma breve, clara y natural, en una o dos frases. " +
+                "No inventes datos ni comprometas al usuario. Si no sabes, ofrece tomar el mensaje. " +
+                "Lo que dijo el interlocutor: " + transcript + "
+Respuesta de Mi Doble:"
+            val response = try {
+                if (model == "Gemini Nano") {
+                    NativeDeviceAiProvider.generate(prompt, system)
+                } else {
+                    NativeLlamaBridge.generate(system + "
+
+" + prompt, 192)
+                }
+            } catch (_: Throwable) {
+                "No pude procesar ese mensaje. Por favor, espere un momento."
+            }
+            runOnUiThread {
+                callAudioAssistant?.speak(response)
             }
         }
     }
@@ -349,6 +431,10 @@ class MainActivity : ComponentActivity() {
         if (requestCode == 410) refreshSimLines()
         if (requestCode == 413) refreshScreeningRole()
         if (requestCode == 415) refreshDialerRole()
+        if (requestCode == 416) {
+            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) answerAsAssistant()
+            else Toast.makeText(this, "Se necesita permiso de micrófono para que Mi Doble intente escuchar al interlocutor.", Toast.LENGTH_LONG).show()
+        }
     }
     private fun saveProfile() {
         getSharedPreferences("mi_doble_profile", MODE_PRIVATE).edit()
@@ -494,6 +580,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        callAudioAssistant?.stop()
+        callAudioAssistant = null
         executor.shutdown()
         super.onDestroy()
     }
