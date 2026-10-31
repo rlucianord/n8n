@@ -130,6 +130,9 @@ class MainActivity : ComponentActivity() {
         blockedNumbers.value = BlockedNumbersStore.read(this)
         refreshScreeningRole()
         refreshSimLines()
+        // CallScreeningService is never invoked until Android grants ROLE_CALL_SCREENING.
+        // Request the role on first launch instead of silently leaving call detection inactive.
+        if (!screeningRoleHeld.value) requestScreeningRole()
         if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 414)
         }
