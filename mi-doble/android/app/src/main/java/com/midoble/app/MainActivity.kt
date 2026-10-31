@@ -5,6 +5,7 @@ import android.app.role.RoleManager
 import android.app.ActivityManager
 import android.content.pm.PackageManager
 import android.telephony.SubscriptionManager
+import android.widget.Toast
 import android.os.Bundle
 import android.os.Environment
 import android.os.StatFs
@@ -239,9 +240,20 @@ class MainActivity : ComponentActivity() {
                                         "Esta versión todavía no puede contestar ni escuchar llamadas celulares."
                                 )
                             },
+                            dismissButton = {
+                                TextButton(onClick = {
+                                    val answered = MiDobleInCallService.answerCurrentCall()
+                                    if (!answered) Toast.makeText(this@MainActivity, "Android no permitió contestar desde Mi Doble. La llamada sigue disponible en la aplicación telefónica.", Toast.LENGTH_LONG).show()
+                                    incomingCallNumber.value = null
+                                }) {
+                                    Text("La atiendo yo")
+                                }
+                            },
                             confirmButton = {
-                                TextButton(onClick = { incomingCallNumber.value = null }) {
-                                    Text("Entendido")
+                                TextButton(onClick = {
+                                    Toast.makeText(this@MainActivity, "La gestión telefónica está integrada, pero el audio bidireccional del asistente aún no está habilitado. Atiende tú la llamada por ahora.", Toast.LENGTH_LONG).show()
+                                }) {
+                                    Text("Que atienda Mi Doble")
                                 }
                             }
                         )
