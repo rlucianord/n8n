@@ -454,7 +454,12 @@ class MainActivity : ComponentActivity() {
         nativeAiOutput.value = "Ejecutando una prueba local…"
         executor.execute {
             val result = try {
-                ModelInferenceRouter.generate(this, "Preséntate brevemente y confirma que estás ejecutándote localmente en este teléfono.", buildNativeSystemInstruction())
+                val prompt = "Preséntate brevemente y confirma que estás ejecutándote localmente en este teléfono."
+                if (selectedModel.value == "Gemini Nano") {
+                    NativeDeviceAiProvider.generate(prompt, buildNativeSystemInstruction())
+                } else {
+                    NativeLlamaBridge.generate("${buildNativeSystemInstruction()}\n\nUsuario: $prompt\nMi Doble:", 256)
+                }
             } catch (error: Throwable) {
                 "La prueba no pudo completarse: ${error.message ?: error.javaClass.simpleName}"
             }
