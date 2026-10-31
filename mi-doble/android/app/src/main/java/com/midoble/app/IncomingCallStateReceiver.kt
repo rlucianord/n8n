@@ -21,7 +21,12 @@ import androidx.core.app.NotificationCompat
 class IncomingCallStateReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != TelephonyManager.ACTION_PHONE_STATE_CHANGED) return
-        if (intent.getStringExtra(TelephonyManager.EXTRA_STATE) != TelephonyManager.EXTRA_STATE_RINGING) return
+        val phoneState = intent.getStringExtra(TelephonyManager.EXTRA_STATE)
+        if (phoneState == TelephonyManager.EXTRA_STATE_IDLE) {
+            IncomingCallNotifier.dismiss(context)
+            return
+        }
+        if (phoneState != TelephonyManager.EXTRA_STATE_RINGING) return
 
         val number = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER).orEmpty()
         val blocked = number.isNotBlank() && BlockedNumbersStore.read(context)
