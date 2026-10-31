@@ -81,6 +81,7 @@ class MainActivity : ComponentActivity() {
     private val simPermissionGranted = mutableStateOf(false)
     private val blockedNumbers = mutableStateOf<List<String>>(emptyList())
     private val screeningRoleHeld = mutableStateOf(false)
+    private val dialerRoleHeld = mutableStateOf(false)
     private val incomingCallNumber = mutableStateOf<String?>(null)
     private val includeModelsInBackup = mutableStateOf(true)
     private val backupStatus = mutableStateOf("")
@@ -133,6 +134,7 @@ class MainActivity : ComponentActivity() {
         selectedSimSlot.value = prefs.getInt("preferred_sim_slot", -1)
         blockedNumbers.value = BlockedNumbersStore.read(this)
         refreshScreeningRole()
+        refreshDialerRole()
         refreshSimLines()
         // CallScreeningService is never invoked until Android grants ROLE_CALL_SCREENING.
         // Request the role on first launch instead of silently leaving call detection inactive.
@@ -221,7 +223,9 @@ class MainActivity : ComponentActivity() {
                             onAgency = { settingsMenuExpanded.value = false; screen.value = "agency" },
                             onPhone = { settingsMenuExpanded.value = false; screen.value = "phone" },
                             onBlocked = { settingsMenuExpanded.value = false; screen.value = "blocked" },
-                            onBackup = { settingsMenuExpanded.value = false; backupStatus.value = ""; screen.value = "backup" }
+                            onBackup = { settingsMenuExpanded.value = false; backupStatus.value = ""; screen.value = "backup" },
+                            dialerRoleHeld = dialerRoleHeld.value,
+                            onRequestDialerRole = ::requestDialerRole
                         )
                     }
                     incomingCallNumber.value?.let { caller ->
@@ -258,7 +262,29 @@ class MainActivity : ComponentActivity() {
             }
         } catch (_: SecurityException) { simLines.value = emptyList() } catch (_: UnsupportedOperationException) { simLines.value = emptyList() }
     }
-    override fun onResume() { super.onResume(); refreshSimLines(); refreshScreeningRole() }
+    override fun onResume() { super.onResume(); refreshSimLines(); refreshScreeningRole(); refreshDialerRole() }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.getStringExtra("incoming_call_number")?.takeIf { it.isNotBlank() }?.let {
+            incomingCallNumber.value = it
+        }
+    }
+
+    private fun refreshDialerRole() {
+        val manager = getSystemService(RoleManager::class.java)
+        dialerRoleHeld.value = manager?.isRoleAvailable(RoleManager.ROLE_DIALER) == true &&
+            manager.isRoleHeld(RoleManager.ROLE_DIALER)
+    }
+
+    private fun requestDialerRole() {
+        val manager = getSystemService(RoleManager::class.java) ?: return
+        if (manager.isRoleAvailable(RoleManager.ROLE_DIALER) &&
+            !manager.isRoleHeld(RoleManager.ROLE_DIALER)) {
+            startActivityForResult(manager.createRequestRoleIntent(RoleManager.ROLE_DIALER), 415)
+        }
+    }
 
     private fun refreshScreeningRole() {
         val manager = getSystemService(RoleManager::class.java)
@@ -287,6 +313,7 @@ class MainActivity : ComponentActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 410) refreshSimLines()
         if (requestCode == 413) refreshScreeningRole()
+        if (requestCode == 415) refreshDialerRole()
     }
     private fun saveProfile() {
         getSharedPreferences("mi_doble_profile", MODE_PRIVATE).edit()
@@ -420,7 +447,8 @@ private data class DeviceSnapshot(
 private fun DigitalSelfHome(
     name: String, role: String, goals: String, modelReady: Boolean, selectedModel: String,
     modelStatus: String, menuExpanded: Boolean, onMenu: () -> Unit, onDismissMenu: () -> Unit,
-    onProfile: () -> Unit, onModel: () -> Unit, onAgency: () -> Unit, onPhone: () -> Unit, onBlocked: () -> Unit, onBackup: () -> Unit
+    onProfile: () -> Unit, onModel: () -> Unit, onAgency: () -> Unit, onPhone: () -> Unit, onBlocked: () -> Unit, onBackup: () -> Unit,
+    dialerRoleHeld: Boolean, onRequestDialerRole: () -> Unit
 ) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
@@ -469,10 +497,12 @@ private fun DigitalSelfHome(
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Llamadas telefónicas", style = MaterialTheme.typography.titleMedium)
-                Text("La SIM que recibe una llamada es la línea a cuyo número llama la persona.")
-                Text("La respuesta automática con IA aún no está activa: Android restringe el acceso de aplicaciones comunes al audio de llamadas celulares.")
-                Text("La respuesta automática a llamadas celulares requiere integrar telefonía, gestión de llamadas y acceso autorizado al audio. Esta versión aún no contesta llamadas.")
-                Text("Próximo paso: habilitar una vía de llamada compatible y probar la conversación de extremo a extremo.", style = MaterialTheme.typography.bodySmall)
+                Text("Mi Doble puede asumir la interfaz telefónica de Android para gestionar llamadas entrantes y en curso.")
+                Text(if (dialerRoleHeld) "Mi Doble es la aplicación telefónica predeterminada." else "Para gestionar llamadas, Android debe autorizar a Mi Doble como aplicación telefónica predeterminada.")
+                if (!dialerRoleHeld) {
+                    Button(onClick = onRequestDialerRole, modifier = Modifier.fillMaxWidth()) { Text("Establecer Mi Doble como aplicación telefónica") }
+                }
+                Text("La conversación automática con el asistente local requiere validar por separado el acceso bidireccional al audio de llamadas SIM. No se activa solo por asumir el rol telefónico.")
                 Button(onClick = onPhone, modifier = Modifier.fillMaxWidth()) { Text("Configurar líneas SIM") }
             }
         }
