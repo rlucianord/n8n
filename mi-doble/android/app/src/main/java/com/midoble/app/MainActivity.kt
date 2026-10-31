@@ -54,12 +54,17 @@ private val modelOptions = listOf(
     ModelOption("Qwen3", "Modelo multilingüe para tareas generales. Disponible para instalación.", "Qwen3-4B-Q4_K_M.gguf"),
     ModelOption("Gemma 3", "Modelo compacto de Google.", null),
     ModelOption("Llama 3.2", "Modelo compacto de Meta para tareas generales.", null),
-    ModelOption("SmolLM3", "Modelo pequeño multilingüe de Hugging Face; compatibilidad del dispositivo pendiente de validación.", null)
+    ModelOption("SmolLM3", "Modelo pequeño multilingüe de Hugging Face; compatibilidad del dispositivo pendiente de validación.", null),
+    ModelOption("Gemini Nano", "Motor de IA gestionado por Android AICore. Se activa solo si el sistema confirma compatibilidad.", null)
 )
 
 class MainActivity : ComponentActivity() {
     private val executor = Executors.newSingleThreadExecutor()
     private val backendInfo = mutableStateOf("Comprobando motor local…")
+    private val nativeAiStatus = mutableStateOf("Comprobando compatibilidad con Android AICore…")
+    private val nativeAiAvailable = mutableStateOf(false)
+    private val nativeAiDownloadable = mutableStateOf(false)
+    private val nativeAiOutput = mutableStateOf("")
     private val modelStatus = mutableStateOf("Selecciona un modelo.")
     private val modelProgress = mutableStateOf(0f)
     private val modelReady = mutableStateOf(false)
@@ -167,6 +172,21 @@ class MainActivity : ComponentActivity() {
             runOnUiThread { backendInfo.value = info }
         }
 
+        executor.execute {
+            val check = NativeDeviceAiProvider.checkAvailability()
+            runOnUiThread {
+                nativeAiStatus.value = check.detail
+                nativeAiAvailable.value = check.availability == NativeDeviceAiProvider.Availability.AVAILABLE
+                nativeAiDownloadable.value = check.availability == NativeDeviceAiProvider.Availability.DOWNLOADABLE
+                if (nativeAiAvailable.value) {
+                    selectedModel.value = "Gemini Nano"
+                    modelReady.value = true
+                    modelStatus.value = "Gemini Nano está activo como motor local preferido."
+                    getSharedPreferences("mi_doble_profile", MODE_PRIVATE).edit().putString("active_model", "Gemini Nano").apply()
+                }
+            }
+        }
+
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -186,6 +206,9 @@ class MainActivity : ComponentActivity() {
                             onSelected = ::selectModel, status = modelStatus.value,
                             progress = modelProgress.value, busy = busy.value,
                             backend = backendInfo.value, device = snapshot,
+                            nativeStatus = nativeAiStatus.value, nativeAvailable = nativeAiAvailable.value,
+                            nativeDownloadable = nativeAiDownloadable.value, nativeOutput = nativeAiOutput.value,
+                            onNativeTest = ::testNativeAi,
                             onInstall = ::installSelectedModel, onBack = { screen.value = "home" }
                         )
                         "blocked" -> CallBlocklistScreen(numbers = blockedNumbers.value, screeningEnabled = screeningRoleHeld.value, onAdd = ::addBlockedNumber, onRemove = ::removeBlockedNumber, onEnableScreening = ::requestScreeningRole, onBack = { screen.value = "home" })
@@ -351,6 +374,13 @@ class MainActivity : ComponentActivity() {
 
     private fun selectModel(name: String) {
         if (modelOptions.none { it.name == name }) return
+        if (name == "Gemini Nano") {
+            selectedModel.value = name
+            getSharedPreferences("mi_doble_profile", MODE_PRIVATE).edit().putString("active_model", name).apply()
+            modelReady.value = nativeAiAvailable.value
+            modelStatus.value = if (nativeAiAvailable.value) "Gemini Nano está disponible y seleccionado." else nativeAiStatus.value
+            return
+        }
         selectedModel.value = name
         getSharedPreferences("mi_doble_profile", MODE_PRIVATE).edit().putString("active_model", name).apply()
         val file = when (name) {
@@ -368,6 +398,23 @@ class MainActivity : ComponentActivity() {
 
     private fun installSelectedModel() {
         if (busy.value || modelReady.value) return
+        if (selectedModel.value == "Gemini Nano") {
+            if (!nativeAiDownloadable.value) { modelStatus.value = nativeAiStatus.value; return }
+            busy.value = true
+            modelStatus.value = "Solicitando a Android la descarga del modelo nativo…"
+            executor.execute {
+                val result = NativeDeviceAiProvider.download { message -> runOnUiThread { modelStatus.value = message } }
+                runOnUiThread {
+                    nativeAiStatus.value = result.detail
+                    nativeAiAvailable.value = result.availability == NativeDeviceAiProvider.Availability.AVAILABLE
+                    nativeAiDownloadable.value = result.availability == NativeDeviceAiProvider.Availability.DOWNLOADABLE
+                    modelReady.value = nativeAiAvailable.value
+                    modelStatus.value = result.detail
+                    busy.value = false
+                }
+            }
+            return
+        }
         if (selectedModel.value != "Qwen3") {
             modelStatus.value = "El instalador de este modelo aún no está habilitado: falta verificar su archivo, tamaño y SHA-256. Qwen3 permanece disponible."
             return
@@ -399,6 +446,32 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    private fun testNativeAi() {
+        if (!nativeAiAvailable.value || busy.value) return
+        busy.value = true
+        nativeAiOutput.value = "Ejecutando una prueba local…"
+        executor.execute {
+            val result = try {
+                ModelInferenceRouter.generate(this, "Preséntate brevemente y confirma que estás ejecutándote localmente en este teléfono.", buildNativeSystemInstruction())
+            } catch (error: Throwable) {
+                "La prueba no pudo completarse: ${error.message ?: error.javaClass.simpleName}"
+            }
+            runOnUiThread { nativeAiOutput.value = result; busy.value = false }
+        }
+    }
+
+    private fun buildNativeSystemInstruction(): String {
+        val prefs = getSharedPreferences("mi_doble_profile", MODE_PRIVATE)
+        return listOf(
+            "Eres Mi Doble, un asistente local y transparente. Respeta la identidad, el estilo y los límites del usuario.",
+            "Nombre: ${prefs.getString("name", "").orEmpty()}",
+            "Rol: ${prefs.getString("role", "").orEmpty()}",
+            "Idiomas: ${prefs.getString("languages", "Español, inglés").orEmpty()}",
+            "Estilo: ${prefs.getString("style", "Directo, claro y práctico").orEmpty()}",
+            "Valores: ${prefs.getString("values", "Privacidad, autonomía y continuidad").orEmpty()}"
+        ).joinToString("\n")
     }
 
     private fun loadModel(file: File) {
@@ -552,7 +625,8 @@ private fun PersonalizationScreen(
 private fun ModelSettingsScreen(
     options: List<ModelOption>, selected: String, onSelected: (String) -> Unit,
     status: String, progress: Float, busy: Boolean, backend: String, device: DeviceSnapshot,
-    onInstall: () -> Unit, onBack: () -> Unit
+    nativeStatus: String, nativeAvailable: Boolean, nativeDownloadable: Boolean, nativeOutput: String,
+    onNativeTest: () -> Unit, onInstall: () -> Unit, onBack: () -> Unit
 ) {
     val appContext = androidx.compose.ui.platform.LocalContext.current
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -573,7 +647,22 @@ private fun ModelSettingsScreen(
         }
         if (busy) LinearProgressIndicator(progress = { progress }, Modifier.fillMaxWidth())
         Text(status)
-        Button(onClick = onInstall, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text(if (selected == "Qwen3") "Descargar e instalar" else "Instalador no disponible todavía") }
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("IA nativa del teléfono", style = MaterialTheme.typography.titleMedium)
+                Text("Gemini Nano / Android AICore", style = MaterialTheme.typography.bodyMedium)
+                Text(nativeStatus, style = MaterialTheme.typography.bodySmall)
+                if (nativeAvailable) {
+                    Button(onClick = onNativeTest, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("Probar IA nativa ahora") }
+                    if (nativeOutput.isNotBlank()) Text(nativeOutput, style = MaterialTheme.typography.bodySmall)
+                } else if (nativeDownloadable) {
+                    Button(onClick = onInstall, enabled = !busy && selected == "Gemini Nano", modifier = Modifier.fillMaxWidth()) { Text("Descargar y activar Gemini Nano") }
+                } else {
+                    Text("Mi Doble volverá a comprobar la disponibilidad al iniciar. Si HONOR habilita el motor para este modelo, podrá activarlo sin sustituir Qwen3.", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+        Button(onClick = onInstall, enabled = !busy && selected != "Gemini Nano", modifier = Modifier.fillMaxWidth()) { Text(if (selected == "Qwen3") "Descargar e instalar" else "Instalador no disponible todavía") }
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text("Diagnóstico", style = MaterialTheme.typography.titleMedium)
