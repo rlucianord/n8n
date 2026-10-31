@@ -12,6 +12,14 @@
         android:label="Mi Doble"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <receiver
+            android:name=".IncomingCallStateReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
         <service
             android:name=".BlockedCallScreeningService"
             android:permission="android.permission.BIND_SCREENING_SERVICE"
